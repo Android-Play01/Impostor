@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Impostor - Multijugador</title>
+
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <!-- Babel for inline JSX (dev convenience) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase (v9 compat CDN for easier single-file use) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
+    body { font-family: 'Poppins', sans-serif; background: #0b1020; color: #e6eef8; margin:0; -webkit-font-smoothing:antialiased; }
+    .card-container { perspective:1200px; }
+    .game-card { transform-style:preserve-3d; will-change:transform; touch-action:none; user-select:none; }
+    .card-snap-back { transition: transform 300ms cubic-bezier(.22,.9,.28,1); }
+    @keyframes bounce-up { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+    .animate-bounce-custom { animation: bounce-up 1.4s infinite; }
+    .no-scrollbar::-webkit-scrollbar{display:none} .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+/* ------------------------------
+  Impostor Multijugador (Single File)
+  - Usa Firebase Realtime Database (compat)
+  - Crea salas, host, join, asigna roles en DB
+  - Cada jugador ve solo su rol
+  - Mantiene swipe revelado localmente (la tarjeta sigue el dedo)
+  - Requiere: reemplazar firebaseConfig con tu proyecto Firebase
+  - Recomendación: activar reglas seguras en Firebase antes de prod
+-------------------------------*/
+
+const { useState, useEffect, useRef } = React;
+
+/* ---------------------- CONFIG: reemplaza con tu Firebase config ----------------------
+  - Ve a Firebase Console -> Add project -> Web App -> copia tu config aquí
+  - Recomendación de reglas: durante desarrollo puedes dejar públicas,
+    pero para producción debes usar reglas que validen room ownership,
+    o usar Cloud Functions para lógica de asignación de roles protegida.
+-------------------------------------------------------------------------------------*/
+const firebaseConfig = {
+  apiKey: "REPLACE_ME",
+  authDomain: "REPLACE_ME.firebaseapp.com",
+  databaseURL: "https://REPLACE_ME-default-rtdb.firebaseio.com",
+  projectId: "REPLACE_ME",
+  storageBucket: "REPLACE_ME.appspot.com",
+  messagingSenderId: "REPLACE_ME",
+  appId: "REPLACE_ME"
+};
+
+/* ---------------------- Setup Firebase ---------------------- */
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const auth = firebase.auth();
+
+/* ---------------------- Datos locales (mismos que v1) ---------------------- */
+const wordCategories = [
+  { category: "Lugares", words: ["Hospital", "Escuela", "Playa", "Aeropuerto", "Cine", "Cementerio", "Biblioteca", "Gimnasio"] },
+  { category: "Comida", words: ["Pizza", "Sushi", "Hamburguesa", "Tacos", "Helado", "Chocolate", "Ensalada", "Paella"] },
+  { category: "Animales", words: ["Elefante", "Jirafa", "León", "Pingüino", "Delfín", "Perro", "Gato", "Koala"] },
+  { category: "Objetos", words: ["Teléfono", "Cuchara", "Reloj", "Silla", "Lámpara", "Zapato", "Guitarra", "Espejo"] },
+  { category: "Profesiones", words: ["Doctor", "Policía", "Bombero", "Profesor", "Astronauta", "Cocinero", "Payaso", "Mecánico"] }
+];
+const avatars = ["👽","👻","🤖","🤡","👹","🤠","😎","🦄","🐲","🎃","🐯","🐶","🦊","🦁"];
+
+/* ---------------------- Utils ---------------------- */
+const uidKey = 'impostor_uid_v2';
+const playerLSkey = 'impostor_player_v2';
+const roomLSkey = 'impostor_room_v2';
+
+function makeRoomId() {
+  // 4 chars friendly code
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s='';
+  for(let i=0;i<4;i++) s += chars[Math.floor(Math.random()*chars.length)];
+  return s;
+}
+
+function saveLS(key, value){ try{ localStorage.setItem(key, JSON.stringify(value)); } catch(e){} }
+function loadLS(key, fallback){ try { const v = localStorage.getItem(key); return v?JSON.parse(v):fallback;}catch(e){return fallback;} }
+
+/* ---------------------- Authentication: Anonymous ----------------------
+  We use Firebase anonymous auth so each browser has a stable uid for DB references.
+  This is simple and works for many use-cases. For stronger identity use Firebase Auth providers.
+-------------------------------------------------------------------------*/
+async function ensureAuth() {
+  let user = auth.currentUser;
+  if (!user) {
+    try {
+      const result = await auth.signInAnonymously();
+      user = result.user;
+      // store local uid also for offline identification
+      saveLS(uidKey, user.uid);
+    } catch (err) {
+      console.error('Auth error', err);
+      // fallback: use generated client id (not recommended for multi-client)
+      let fallbackId = loadLS(uidKey, null);
+      if (!fallbackId) {
+        fallbackId = 'anon_' + Math.random().toString(36).slice(2,10);
+        saveLS(uidKey, fallbackId);
+      }
+      return { uid: fallbackId, fallback:true };
+    }
+  }
+  return { uid: user.uid, fallback:false };
+}
+
+/* ---------------------- Data shape in Realtime DB (example)
+rooms/
+  ROOMID/
+    meta: { hostUid, createdAt, settings... }
+    players: { uid: {name, avatar, joinedAt, ready:false } }
+    game: { state: 'lobby'|'playing'|'finished', category, word, impostorUid, startedAt, history:[] }
+----------------------------------------------------------------------------------*/
+
+/* ---------------------- App Component ---------------------- */
+function App(){
+  const [ready, setReady] = useState(false);
+  const [me, setMe] = useState(loadLS(playerLSkey, null)); // {uid, name, avatar}
+  const [roomId, setRoomId] = useState(loadLS(roomLSkey, null));
+  const [view, setView] = useState('home'); // home | lobby | game | finished
+  const [roomState, setRoomState] = useState(null); // mirror of DB room
+  const [players, setPlayers] = useState([]); // array from DB
+  const [localRole, setLocalRole] = useState(null); // 'impostor' | 'word' | null
+  const [secretWord, setSecretWord] = useState('');
+  const [category, setCategory] = useState('');
+  const [isHost, setIsHost] = useState(false);
+
+  // swipe refs (we reuse your swipe logic locally per player)
+  const cardFrontRef = useRef(null);
+  const containerRef = useRef(null);
+  const startYRef = useRef(0);
+  const translateRef = useRef(0);
+  const draggingRef = useRef(false);
+  const [cardRevealed, setCardRevealed] = useState(false);
+  const [showNext, setShowNext] = useState(false);
+  const [containerHeight, setContainerHeight] = useState(420);
+  const THRESHOLD_RATIO = 0.5;
+
+  // DB listeners
+  const roomRef = useRef(null);
+  const playersRef = useRef(null);
+  const gameRef = useRef(null);
+
+  // initial auth & restore
+  useEffect(()=> {
+    (async ()=> {
+      const authRes = await ensureAuth();
+      let myPlayer = me;
+      if (!myPlayer) {
+        // create simple local player object for anonymous usage
+        const name = 'Jugador ' + Math.floor(Math.random()*900+100);
+        const avatar = avatars[Math.floor(Math.random()*avatars.length)];
+        myPlayer = { uid: authRes.uid, name, avatar };
+        saveLS(playerLSkey, myPlayer);
+        setMe(myPlayer);
+      } else {
+        // ensure uid matches
+        myPlayer.uid = authRes.uid || myPlayer.uid;
+        saveLS(playerLSkey, myPlayer);
+        setMe(myPlayer);
+      }
+      // if had old room, try to re-attach
+      if (roomId) {
+        // we'll attach listeners below when room exists
+      }
+      setReady(true);
+    })();
+  }, []);
+
+  // update container height for threshold
+  useEffect(() => {
+    const update = () => {
+      const el = containerRef.current;
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setContainerHeight(r.height || 420);
+      }
+    };
+    update();
+    window.addEventListener('resize', update);
+    return ()=> window.removeEventListener('resize', update);
+  }, []);
+
+  // When roomId changes (join/create), attach listeners
+  useEffect(()=> {
+    if (!ready) return;
+    cleanupRoomListeners();
+    if (!roomId) {
+      setRoomState(null);
+      setPlayers([]);
+      setView('home');
+      saveLS(roomLSkey, null);
+      return;
+    }
+    // attach DB refs
+    roomRef.current = db.ref('rooms/' + roomId);
+    playersRef.current = db.ref('rooms/' + roomId + '/players');
+    gameRef.current = db.ref('rooms/' + roomId + '/game');
+
+    // listen meta & game
+    roomRef.current.child('meta').on('value', snap => {
+      const val = snap.val();
+      setRoomState(prev => ({ ...prev, meta: val }));
+      if (val && val.hostUid === (me && me.uid)) setIsHost(true); else setIsHost(false);
+    });
+
+    // listen players list
+    playersRef.current.on('value', snap => {
+      const obj = snap.val() || {};
+      const arr = Object.keys(obj).map(k => ({ uid: k, ...obj[k] }));
+      // sort by joinedAt
+      arr.sort((a,b) => (a.joinedAt||0) - (b.joinedAt||0));
+      setPlayers(arr);
+      setRoomState(prev => ({ ...prev, players: obj }));
+    });
+
+    // listen game state
+    gameRef.current.on('value', snap => {
+      const val = snap.val();
+      setRoomState(prev => ({ ...prev, game: val }));
+      if (val) {
+        setCategory(val.category || '');
+        setSecretWord(val.word || '');
+        // determine local role if game state is playing
+        if (val.state === 'playing') {
+          setView('game');
+          // each player should read only their role: DB stores role mapping by uid -> {role:'impostor'|'word'}
+          if (val.roles && me && me.uid) {
+            const myRole = val.roles[me.uid] ? val.roles[me.uid].role : null;
+            setLocalRole(myRole);
+          } else {
+            setLocalRole(null);
+          }
+        } else if (val.state === 'finished') {
+          setView('finished');
+        } else {
+          setView('lobby');
+        }
+      } else {
+        setView('lobby');
+      }
+    });
+
+    saveLS(roomLSkey, roomId);
+
+    return () => cleanupRoomListeners();
+  }, [roomId, ready, me && me.uid]);
+
+  function cleanupRoomListeners() {
+    if (roomRef.current) {
+      roomRef.current.off();
+      roomRef.current = null;
+    }
+    if (playersRef.current) {
+      playersRef.current.off();
+      playersRef.current = null;
+    }
+    if (gameRef.current) {
+      gameRef.current.off();
+      gameRef.current = null;
+    }
+  }
+
+  /* ----------------- Room management (create / join / leave) ----------------- */
+  async function createRoom() {
+    const id = makeRoomId();
+    const meta = { hostUid: me.uid, createdAt: Date.now() };
+    // write initial room: meta and empty players
+    await db.ref('rooms/' + id + '/meta').set(meta);
+    await db.ref('rooms/' + id + '/players/' + me.uid).set({ name: me.name, avatar: me.avatar, joinedAt: Date.now() });
+    // set initial game state
+    await db.ref('rooms/' + id + '/game').set({ state: 'lobby' });
+    setRoomId(id);
+    setIsHost(true);
+    setView('lobby');
+  }
+
+  async function joinRoom(code, nameOverride) {
+    if (!code) return alert('Código vacío');
+    const roomSnap = await db.ref('rooms/' + code + '/meta').get();
+    if (!roomSnap.exists()) return alert('Sala no encontrada: verifica el código');
+    // save my player info under players
+    const playerName = nameOverride || me.name;
+    await db.ref('rooms/' + code + '/players/' + me.uid).set({ name: playerName, avatar: me.avatar, joinedAt: Date.now() });
+    setRoomId(code);
+    setView('lobby');
+  }
+
+  async function leaveRoom() {
+    if (!roomId) return;
+    // remove player from players list
+    await db.ref('rooms/' + roomId + '/players/' + me.uid).remove();
+    // if host leaves: optionally transfer host or delete room if empty
+    const metaSnap = await db.ref('rooms/' + roomId + '/meta').get();
+    const meta = metaSnap.val();
+    if (meta && meta.hostUid === me.uid) {
+      // check remaining players
+      const playersSnap = await db.ref('rooms/' + roomId + '/players').get();
+      const obj = playersSnap.val() || {};
+      const uids = Object.keys(obj);
+      if (uids.length === 0) {
+        // delete room
+        await db.ref('rooms/' + roomId).remove();
+      } else {
+        // assign new host as first player
+        const newHostUid = uids[0];
+        await db.ref('rooms/' + roomId + '/meta/hostUid').set(newHostUid);
+      }
+    }
+    setRoomId(null);
+    setView('home');
+    saveLS(roomLSkey, null);
+  }
+
+  /* ----------------- Host: start game ----------------- */
+  async function hostStartGame(settings = {}) {
+    if (!isHost) return alert('Solo el host puede iniciar la partida');
+    // choose category & word
+    const catIdx = Math.floor(Math.random() * wordCategories.length);
+    const cat = wordCategories[catIdx];
+    const word = cat.words[Math.floor(Math.random()*cat.words.length)];
+    // fetch players list
+    const playersSnap = await db.ref('rooms/' + roomId + '/players').get();
+    const playersObj = playersSnap.val() || {};
+    const uids = Object.keys(playersObj);
+    if (uids.length < 3) return alert('Se necesitan al menos 3 jugadores para iniciar');
+    // choose impostor using simple weighted logic (avoid repeats) - here the host chooses and saves roles
+    // For stronger security move this logic to Cloud Function
+    // Load history if exists
+    const historySnap = await db.ref('rooms/' + roomId + '/meta/history').get();
+    const history = historySnap.exists() ? historySnap.val() : [];
+    // simple anti-repeat: avoid last N impostors
+    const recallN = settings.recallRounds || 3;
+    const penalty = settings.penaltyPerRecent || 0.6;
+
+    // compute weights
+    const weights = uids.map(uid => 1);
+    const lastN = history.slice(-recallN);
+    uids.forEach((uid,i) => {
+      const times = lastN.filter(x => x === uid).length;
+      if (times>0) weights[i] = weights[i] * Math.pow(1 - penalty, times);
+    });
+    const sum = weights.reduce((a,b)=>a+b,0);
+    let r = Math.random()*sum;
+    let chosenIdx = 0;
+    for (let i=0;i<weights.length;i++){
+      r -= weights[i];
+      if (r <= 0) { chosenIdx = i; break;}
+    }
+    const impostorUid = uids[chosenIdx];
+
+    // Build roles map
+    const roles = {};
+    for (let u of uids) {
+      roles[u] = { role: (u === impostorUid ? 'impostor' : 'word') };
+    }
+
+    // Save game object atomically
+    await db.ref('rooms/' + roomId + '/game').set({
+      state: 'playing',
+      category: cat.category,
+      word: word, // note: this is readable in DB. For more secrecy, consider storing the word only under players who should see it (or encrypt it)
+      startedAt: Date.now(),
+      impostorUid,
+      roles,
+    });
+
+    // update meta history: push impostorUid (for anti-repeat next rounds)
+    const nextHistory = (history||[]).concat([impostorUid]).slice(-50);
+    await db.ref('rooms/' + roomId + '/meta/history').set(nextHistory);
+  }
+
+  /* ----------------- Host: finish game ----------------- */
+  async function hostFinishGame() {
+    if (!isHost) return;
+    // set game state to finished
+    await db.ref('rooms/' + roomId + '/game/state').set('finished');
+  }
+
+  /* ----------------- Local swipe logic (per player) ----------------- */
+  const THRESHOLD = useRef(0);
+  useEffect(()=> { THRESHOLD.current = -Math.round(containerHeight * THRESHOLD_RATIO); }, [containerHeight]);
+
+  function onPointerDown(ev){
+    if (view !== 'game' || cardRevealed) return;
+    draggingRef.current = true;
+    startYRef.current = ev.clientY ?? (ev.touches && ev.touches[0] && ev.touches[0].clientY) ?? 0;
+    translateRef.current = 0;
+    setShowNext(true);
+  }
+  function onPointerMove(ev){
+    if (!draggingRef.current || view !== 'game' || cardRevealed) return;
+    const clientY = ev.clientY ?? (ev.touches && ev.touches[0] && ev.touches[0].clientY) ?? 0;
+    const delta = clientY - startYRef.current;
+    const translateY = Math.min(0, delta);
+    translateRef.current = translateY;
+    if (cardFrontRef.current) {
+      cardFrontRef.current.style.transition = 'transform 0ms';
+      const scale = 1 - Math.min(0.07, Math.abs(translateY)/(containerHeight*6));
+      cardFrontRef.current.style.transform = `translateY(${translateY}px) scale(${scale})`;
+    }
+    if (translateY <= THRESHOLD.current) {
+      draggingRef.current = false;
+      revealLocalCard();
+    }
+  }
+  function onPointerUp(ev){
+    if (cardRevealed) return;
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    if (translateRef.current > THRESHOLD.current) {
+      snapBackLocal();
+    } else {
+      revealLocalCard();
+    }
+  }
+  function revealLocalCard(){
+    setCardRevealed(true);
+    setShowNext(true);
+    if (cardFrontRef.current) {
+      cardFrontRef.current.style.transition = 'transform 320ms cubic-bezier(.22,.9,.28,1)';
+      cardFrontRef.current.style.transform = `translateY(${THRESHOLD.current - 80}px) scale(1.02)`;
+    }
+  }
+  function snapBackLocal(){
+    if (cardFrontRef.current) {
+      cardFrontRef.current.classList.add('card-snap-back');
+      cardFrontRef.current.style.transform = 'translateY(0px) scale(1)';
+      setTimeout(()=> { if (cardFrontRef.current) cardFrontRef.current.classList.remove('card-snap-back'); }, 320);
+    }
+    setShowNext(true);
+  }
+
+  /* ----------------- UI Actions for players ----------------- */
+  async function playerRevealDone() {
+    // local only: after revealing, maybe mark ready in DB
+    if (roomId) {
+      await db.ref('rooms/' + roomId + '/players/' + me.uid + '/ready').set(true);
+    }
+  }
+  async function playerResetReady() {
+    if (roomId) {
+      await db.ref('rooms/' + roomId + '/players/' + me.uid + '/ready').set(false);
+    }
+  }
+  async function hostResetReadyAll() {
+    if (!isHost) return;
+    const snap = await db.ref('rooms/' + roomId + '/players').get();
+    const obj = snap.val() || {};
+    const updates = {};
+    Object.keys(obj).forEach(uid => updates[uid + '/ready'] = false);
+    await db.ref('rooms/' + roomId + '/players').update(updates);
+  }
+
+  /* ----------------- Helper UI components ----------------- */
+  function HomeView(){
+    const [joinCode, setJoinCode] = useState('');
+    const [joinName, setJoinName] = useState(me?me.name:'');
+    return (
+      <div className="min-h-screen flex flex-col p-6 items-center justify-start">
+        <div className="text-center mt-6">
+          <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">IMPOSTOR</h1>
+          <p className="text-gray-300 mt-1">Multijugador — crea o únete a una sala</p>
+        </div>
+
+        <div className="w-full max-w-md mt-8 space-y-4">
+          <div className="bg-[#0f1724] p-4 rounded-xl border border-gray-800">
+            <div className="font-semibold mb-2">Tu perfil</div>
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">{me && me.avatar}</div>
+              <input value={me?me.name:''} onChange={(e)=>{ const nm = e.target.value; const newMe = {...me, name:nm}; setMe(newMe); saveLS(playerLSkey,newMe); db.ref().child('temp').set(null); }} className="bg-transparent border-b border-gray-700 focus:outline-none flex-1 py-1" />
+            </div>
+            <div className="text-xs text-gray-400 mt-2">Tu sesión es anónima. Usa un nombre para que tus amigos te reconozcan.</div>
+          </div>
+
+          <button onClick={createRoom} className="w-full py-3 rounded-xl bg-gradient-to-r from-green-400 to-blue-500 text-black font-bold">Crear sala</button>
+
+          <div className="bg-[#0f1724] p-3 rounded-xl border border-gray-800">
+            <div className="font-semibold mb-2">Unirse a sala</div>
+            <input value={joinCode} onChange={(e)=>setJoinCode(e.target.value.toUpperCase())} placeholder="Código de sala (ej: 4L3X)" className="w-full p-3 mb-2 rounded bg-[#0b1220] border border-gray-700" />
+            <button onClick={()=>joinRoom(joinCode, joinName)} className="w-full py-2 rounded-lg bg-white/10">Unirse</button>
+            <div className="text-xs text-gray-400 mt-2">Si el host ya creó la sala, introduce el código y únete.</div>
+          </div>
+
+          <div className="text-xs text-gray-500 text-center mt-4">Código actual (local): <strong>{roomId || '-'}</strong></div>
+        </div>
+      </div>
+    );
+  }
+
+  function LobbyView(){
+    return (
+      <div className="min-h-screen flex flex-col p-6 items-center">
+        <div className="w-full max-w-md">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-xs text-gray-400">Sala</div>
+              <div className="text-2xl font-bold">{roomId}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-400">Host</div>
+              <div className="text-sm">{roomState && roomState.meta && roomState.meta.hostUid === me.uid ? 'Tú' : 'Otro'}</div>
+            </div>
+          </div>
+
+          <div className="bg-[#0f1724] p-4 rounded-xl border border-gray-800 mb-4">
+            <div className="font-semibold mb-2">Jugadores</div>
+            <div className="space-y-2">
+              {players.map(p => (
+                <div key={p.uid} className="flex items-center justify-between bg-[#0b1220] p-2 rounded">
+                  <div className="flex items-center gap-3">
+                    <div className="text-2xl">{p.avatar}</div>
+                    <div>
+                      <div className="font-semibold">{p.name}</div>
+                      <div className="text-xs text-gray-400">{p.uid === me.uid ? 'Tú' : ''}</div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-400">{p.ready ? 'Listo' : '—'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-2 mb-3">
+            <button onClick={() => { if (isHost) hostStartGame(); else alert('Solo el host puede iniciar'); }} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 font-bold">INICIAR PARTIDA</button>
+            <button onClick={leaveRoom} className="py-3 px-4 rounded-xl bg-white/10">Salir</button>
+          </div>
+
+          <div className="text-xs text-gray-400">Comparte este código con tus amigos para que se unan: <strong>{roomId}</strong></div>
+        </div>
+      </div>
+    );
+  }
+
+  function GameView(){
+    const currentPlayer = players.find(p => p.uid === me.uid) || me;
+    const isImpostor = localRole === 'impostor';
+    return (
+      <div className="min-h-screen flex flex-col p-5 items-center">
+        <div className="absolute top-6 left-0 right-0 flex justify-center gap-2 px-6">
+          <div className="h-1.5 w-40 rounded-full bg-white" />
+        </div>
+
+        <div className="text-center mb-6 mt-8 z-10">
+          <h2 className="text-gray-400 text-sm uppercase tracking-widest mb-1">Sala {roomId}</h2>
+          <h1 className="text-3xl font-bold">{currentPlayer.name}</h1>
+        </div>
+
+        <div ref={containerRef} className="w-full max-w-xs h-96 relative card-container z-20" 
+             onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+          <div ref={cardFrontRef} className={`game-card absolute inset-0 rounded-3xl border-2 border-gray-700 flex flex-col items-center justify-center bg-gradient-to-br from-[#0f1724] to-[#0b1220] cursor-grab ${cardRevealed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <div className="text-8xl mb-3">{currentPlayer.avatar}</div>
+            <div className="text-gray-300 font-medium text-center px-6">
+              <p className="mb-2">Hola <span style={{color:'#a78bfa', fontWeight:700}}>{currentPlayer.name}</span></p>
+              <p className="text-sm opacity-70">Desliza hacia arriba hasta la mitad para ver tu rol secreto</p>
+            </div>
+            <div className="absolute bottom-6 animate-bounce-custom opacity-60">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 19V5M5 12l7-7 7 7"/>
+              </svg>
+            </div>
+          </div>
+
+          <div className={`absolute inset-0 flex flex-col items-center justify-center rounded-3xl border-4 transition-all duration-500 ${cardRevealed ? 'scale-100 opacity-100 block' : 'scale-90 opacity-0 hidden'} ${isImpostor ? 'bg-red-900/20 border-red-500' : 'bg-blue-900/20 border-blue-500'}`}>
+            {isImpostor ? (
+              <div className="text-center animate-pulse">
+                <div className="text-6xl mb-4">🤫</div>
+                <h2 className="text-3xl font-black text-red-500 mb-2">IMPOSTOR</h2>
+                <p className="text-red-200 px-4 text-sm">Engaña a todos. No conoces la palabra.</p>
+                <div className="text-xs text-gray-400 mt-3">Categoría: {category}</div>
+              </div>
+            ) : (
+              <div className="text-center">
+                <div className="text-6xl mb-4">🔒</div>
+                <h2 className="text-lg font-medium text-blue-300 mb-1">La palabra es:</h2>
+                <h1 className="text-4xl font-black text-white tracking-wide mb-4">{secretWord}</h1>
+                <div className="text-xs text-gray-400 mt-3">Categoría: {category}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className={`w-full max-w-xs mt-6 transition-all duration-300 transform ${showNext ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'}`}>
+          <button onClick={async (e)=>{ e.stopPropagation(); playerRevealDone(); }} 
+                  disabled={!cardRevealed}
+                  className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-3 ${cardRevealed ? 'bg-white text-gray-900' : 'bg-white/20 text-gray-400 opacity-70 cursor-not-allowed'}`}>
+            <span style={{fontSize:'1.4rem'}}>{currentPlayer.avatar}</span>
+            <span>ENTENDIDO</span>
+          </button>
+          <p className="text-center text-xs text-gray-400 mt-3">Una vez listo, espera a que todos confirmen o el host termine la ronda.</p>
+        </div>
+
+        <div className="w-full max-w-xs mt-4">
+          {isHost ? (
+            <div className="flex gap-2">
+              <button onClick={()=>hostFinishGame()} className="flex-1 py-3 rounded-xl bg-red-600 font-bold">FINALIZAR RONDA</button>
+              <button onClick={()=>hostResetReadyAll()} className="py-3 px-4 rounded-xl bg-white/10">Reset Ready</button>
+            </div>
+          ) : (
+            <div className="text-xs text-gray-400 text-center mt-2">Esperando acciones del host...</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function FinishedView(){
+    // show simple summary to all players
+    const impostorUid = roomState && roomState.game && roomState.game.impostorUid;
+    const impostor = players.find(p => p.uid === impostorUid);
+    return (
+      <div className="min-h-screen flex flex-col p-6 items-center justify-center">
+        <div className="text-center mb-6">
+          <div className="text-6xl mb-4">🎉</div>
+          <h1 className="text-3xl font-bold">Ronda finalizada</h1>
+          <p className="text-gray-400 mt-2">Gracias por jugar</p>
+        </div>
+
+        <div className="bg-[#0f1724] p-4 rounded-xl border border-gray-800 mb-4 text-center">
+          <div className="text-sm text-gray-400">Impostor</div>
+          <div className="text-4xl mt-2">{impostor ? impostor.avatar : '—'}</div>
+          <div className="font-semibold mt-2">{impostor ? impostor.name : 'Desconocido'}</div>
+        </div>
+
+        <div className="flex gap-2 w-full max-w-xs">
+          <button onClick={()=> { if (isHost) hostStartGame(); else alert('Solo host puede iniciar otra ronda') }} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 font-bold">JUGAR OTRA</button>
+          <button onClick={leaveRoom} className="py-3 px-4 rounded-xl bg-white/10">Salir</button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ----------------- Render decision ----------------- */
+  if (!ready) return (<div className="min-h-screen flex items-center justify-center">Cargando...</div>);
+
+  return (
+    <>
+      {(!roomId && view === 'home') && <HomeView />}
+      {(roomId && view === 'lobby') && <LobbyView />}
+      {(roomId && view === 'game') && <GameView />}
+      {(roomId && view === 'finished') && <FinishedView />}
+      {/* Simple footer / quick-leave */}
+      <div style={{position:'fixed', right:12, bottom:12}}>
+        <div className="bg-white/5 p-2 rounded-lg text-xs text-gray-300">
+          {me ? <div>Tu: {me.name}</div> : null}
+          <div>Room: {roomId || '-'}</div>
+          {roomId && <button onClick={leaveRoom} className="text-xs mt-1 underline">Salir</button>}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ---------------------- Render App ---------------------- */
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+  </script>
+
+  <!--
+    NOTAS IMPORTANTES (leer antes de desplegar):
+    1) Seguridad Firebase:
+       - Actualmente este archivo escribe libremente en Realtime DB.
+       - Para producción, configura reglas que restrinjan escritura solo a usuarios autenticados y/o validen la estructura.
+       - Lo ideal: mover la lógica sensible (elección de impostor, distribución de roles, anti-cheat) a Cloud Functions que ejecuten con privilegios y solo expongan tokens/consultas seguras.
+
+    2) Privacidad y palabra:
+       - En este ejemplo la palabra se escribe en /rooms/<ROOM>/game/word (legible en DB).
+       - Para mayor seguridad: guarda la palabra *solo* en el mapa roles de los jugadores que deben verla
+         o usa Cloud Functions para escribir roles individuales que contengan la palabra sólo para los no-impostores.
+
+    3) Escalabilidad:
+       - Firebase Realtime DB es suficiente para partidas casuales. Si buscas mayor control o lógica de servidor, considera
+         usar Supabase, un servidor Node con Socket.io, o Cloud Run + Firestore.
+
+    4) Deploy:
+       - Puedes subir este archivo a GitHub y usar GitHub Pages.
+       - Alternativamente, usa Firebase Hosting (directo con tu proyecto Firebase) para integrar mejor (y usar reglas).
+  -->
+
+</body>
+</html>
