@@ -40,23 +40,20 @@
   - Crea salas, host, join, asigna roles en DB
   - Cada jugador ve solo su rol
   - Mantiene swipe revelado localmente (la tarjeta sigue el dedo)
-  - Requiere: reemplazar firebaseConfig con tu proyecto Firebase
-  - Recomendación: activar reglas seguras en Firebase antes de prod
+  - Requiere: reemplazar firebaseConfig con tu proyecto Firebase si decides cambiar
 -------------------------------*/
 
 const { useState, useEffect, useRef } = React;
 
 /* ---------------------- CONFIG: reemplaza con tu Firebase config ----------------------
-  - Ve a Firebase Console -> Add project -> Web App -> copia tu config aquí
-  - Recomendación de reglas: durante desarrollo puedes dejar públicas,
-    pero para producción debes usar reglas que validen room ownership,
-    o usar Cloud Functions para lógica de asignación de roles protegida.
+   Cambios realizados: QUITÉ `storageBucket` (no es necesario) y AÑADÍ `databaseURL`.
+   Si tu proyecto tiene storage y lo vas a usar, agrega storageBucket correctamente.
 -------------------------------------------------------------------------------------*/
 const firebaseConfig = {
   apiKey: "AIzaSyDRGRi_Npt30Q7WfyhipyGXyk8vAeZrlCQ",
   authDomain: "impostor-5803d.firebaseapp.com",
   projectId: "impostor-5803d",
-  databaseURL: "https://impostor-5803d-default-rtdb.firebaseio.com",
+  databaseURL: "https://impostor-5803d-default-rtdb.firebaseio.com", // <-- obligatorio para Realtime DB
   messagingSenderId: "12633602652",
   appId: "1:12633602652:web:67cef779b6090b50194499",
   measurementId: "G-8575W3YWL3"
@@ -67,7 +64,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 
-/* ---------------------- Datos locales (mismos que v1) ---------------------- */
+/* ---------------------- Datos locales ---------------------- */
 const wordCategories = [
   { category: "Lugares", words: ["Hospital", "Escuela", "Playa", "Aeropuerto", "Cine", "Cementerio", "Biblioteca", "Gimnasio"] },
   { category: "Comida", words: ["Pizza", "Sushi", "Hamburguesa", "Tacos", "Helado", "Chocolate", "Ensalada", "Paella"] },
@@ -93,10 +90,7 @@ function makeRoomId() {
 function saveLS(key, value){ try{ localStorage.setItem(key, JSON.stringify(value)); } catch(e){} }
 function loadLS(key, fallback){ try { const v = localStorage.getItem(key); return v?JSON.parse(v):fallback;}catch(e){return fallback;} }
 
-/* ---------------------- Authentication: Anonymous ----------------------
-  We use Firebase anonymous auth so each browser has a stable uid for DB references.
-  This is simple and works for many use-cases. For stronger identity use Firebase Auth providers.
--------------------------------------------------------------------------*/
+/* ---------------------- Authentication: Anonymous ---------------------- */
 async function ensureAuth() {
   let user = auth.currentUser;
   if (!user) {
@@ -118,14 +112,6 @@ async function ensureAuth() {
   }
   return { uid: user.uid, fallback:false };
 }
-
-/* ---------------------- Data shape in Realtime DB (example)
-rooms/
-  ROOMID/
-    meta: { hostUid, createdAt, settings... }
-    players: { uid: {name, avatar, joinedAt, ready:false } }
-    game: { state: 'lobby'|'playing'|'finished', category, word, impostorUid, startedAt, history:[] }
-----------------------------------------------------------------------------------*/
 
 /* ---------------------- App Component ---------------------- */
 function App(){
@@ -173,10 +159,6 @@ function App(){
         myPlayer.uid = authRes.uid || myPlayer.uid;
         saveLS(playerLSkey, myPlayer);
         setMe(myPlayer);
-      }
-      // if had old room, try to re-attach
-      if (roomId) {
-        // we'll attach listeners below when room exists
       }
       setReady(true);
     })();
@@ -483,7 +465,21 @@ function App(){
             <div className="font-semibold mb-2">Tu perfil</div>
             <div className="flex items-center gap-3">
               <div className="text-3xl">{me && me.avatar}</div>
-              <input value={me?me.name:''}
+
+              {/* ---------- INPUT CORREGIDO: NO HACER PETICIONES POR CADA TECLA ---------- */}
+              <input
+                value={me?me.name:''}
+                onChange={(e)=>{
+                  const nm = e.target.value;
+                  const newMe = {...me, name:nm};
+                  setMe(newMe);
+                  saveLS(playerLSkey,newMe);
+                  // Se eliminó la línea: db.ref().child('temp').set(null);
+                  // Hacer una escritura a Firebase por cada tecla colapsa el UI.
+                }}
+                className="bg-transparent border-b border-gray-700 focus:outline-none flex-1 py-1"
+              />
+            </div>
             <div className="text-xs text-gray-400 mt-2">Tu sesión es anónima. Usa un nombre para que tus amigos te reconozcan.</div>
           </div>
 
@@ -673,25 +669,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   <!--
     NOTAS IMPORTANTES (leer antes de desplegar):
     1) Seguridad Firebase:
-       - Actualmente este archivo escribe libremente en Realtime DB.
+       - Actualmente este archivo escribe libremente en Realtime DB (tu regla temporal lo permite).
        - Para producción, configura reglas que restrinjan escritura solo a usuarios autenticados y/o validen la estructura.
-       - Lo ideal: mover la lógica sensible (elección de impostor, distribución de roles, anti-cheat) a Cloud Functions que ejecuten con privilegios y solo expongan tokens/consultas seguras.
-
     2) Privacidad y palabra:
-       - En este ejemplo la palabra se escribe en /rooms/<ROOM>/game/word (legible en DB).
-       - Para mayor seguridad: guarda la palabra *solo* en el mapa roles de los jugadores que deben verla
-         o usa Cloud Functions para escribir roles individuales que contengan la palabra sólo para los no-impostores.
-
-    3) Escalabilidad:
-       - Firebase Realtime DB es suficiente para partidas casuales. Si buscas mayor control o lógica de servidor, considera
-         usar Supabase, un servidor Node con Socket.io, o Cloud Run + Firestore.
-
-    4) Deploy:
-       - Puedes subir este archivo a GitHub y usar GitHub Pages.
-       - Alternativamente, usa Firebase Hosting (directo con tu proyecto Firebase) para integrar mejor (y usar reglas).
+       - Actualmente la palabra está en /rooms/<ROOM>/game/word (legible en DB). Para mayor seguridad, guárdala sólo donde corresponda.
   -->
 
 </body>
 </html>
-
-
