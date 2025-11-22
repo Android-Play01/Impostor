@@ -37,23 +37,16 @@
 /* ------------------------------
   Impostor Multijugador (Single File)
   - Usa Firebase Realtime Database (compat)
-  - Crea salas, host, join, asigna roles en DB
-  - Cada jugador ve solo su rol
-  - Mantiene swipe revelado localmente (la tarjeta sigue el dedo)
-  - Requiere: reemplazar firebaseConfig con tu proyecto Firebase si decides cambiar
 -------------------------------*/
 
 const { useState, useEffect, useRef } = React;
 
-/* ---------------------- CONFIG: reemplaza con tu Firebase config ----------------------
-   Cambios realizados: QUITÉ `storageBucket` (no es necesario) y AÑADÍ `databaseURL`.
-   Si tu proyecto tiene storage y lo vas a usar, agrega storageBucket correctamente.
--------------------------------------------------------------------------------------*/
+/* ---------------------- CONFIG ---------------------- */
 const firebaseConfig = {
   apiKey: "AIzaSyDRGRi_Npt30Q7WfyhipyGXyk8vAeZrlCQ",
   authDomain: "impostor-5803d.firebaseapp.com",
   projectId: "impostor-5803d",
-  databaseURL: "https://impostor-5803d-default-rtdb.firebaseio.com", // <-- obligatorio para Realtime DB
+  databaseURL: "https://impostor-5803d-default-rtdb.firebaseio.com",
   messagingSenderId: "12633602652",
   appId: "1:12633602652:web:67cef779b6090b50194499",
   measurementId: "G-8575W3YWL3"
@@ -80,7 +73,6 @@ const playerLSkey = 'impostor_player_v2';
 const roomLSkey = 'impostor_room_v2';
 
 function makeRoomId() {
-  // 4 chars friendly code
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let s='';
   for(let i=0;i<4;i++) s += chars[Math.floor(Math.random()*chars.length)];
@@ -97,11 +89,9 @@ async function ensureAuth() {
     try {
       const result = await auth.signInAnonymously();
       user = result.user;
-      // store local uid also for offline identification
       saveLS(uidKey, user.uid);
     } catch (err) {
       console.error('Auth error', err);
-      // fallback: use generated client id (not recommended for multi-client)
       let fallbackId = loadLS(uidKey, null);
       if (!fallbackId) {
         fallbackId = 'anon_' + Math.random().toString(36).slice(2,10);
@@ -113,20 +103,70 @@ async function ensureAuth() {
   return { uid: user.uid, fallback:false };
 }
 
+/* ---------------------- Helper UI components (EXTRAÍDOS FUERA DE APP PARA EVITAR RE-RENDER BUG) ---------------------- */
+
+function HomeView({ me, setMe, createRoom, joinRoom, roomId }){
+  const [joinCode, setJoinCode] = useState('');
+  // Usamos me.name directamente para unirse si no se escribe otro
+  const [joinName, setJoinName] = useState(me ? me.name : '');
+
+  return (
+    <div className="min-h-screen flex flex-col p-6 items-center justify-start">
+      <div className="text-center mt-6">
+        <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">IMPOSTOR</h1>
+        <p className="text-gray-300 mt-1">Multijugador — crea o únete a una sala</p>
+      </div>
+
+      <div className="w-full max-w-md mt-8 space-y-4">
+        <div className="bg-[#0f1724] p-4 rounded-xl border border-gray-800">
+          <div className="font-semibold mb-2">Tu perfil</div>
+          <div className="flex items-center gap-3">
+            <div className="text-3xl">{me && me.avatar}</div>
+
+            {/* Input corregido: Al estar HomeView fuera de App, el foco se mantiene */}
+            <input
+              value={me ? me.name : ''}
+              onChange={(e)=>{
+                const nm = e.target.value;
+                const newMe = {...me, name:nm};
+                setMe(newMe);
+                saveLS(playerLSkey, newMe);
+              }}
+              className="bg-transparent border-b border-gray-700 focus:outline-none flex-1 py-1"
+            />
+          </div>
+          <div className="text-xs text-gray-400 mt-2">Tu sesión es anónima. Usa un nombre para que tus amigos te reconozcan.</div>
+        </div>
+
+        <button onClick={createRoom} className="w-full py-3 rounded-xl bg-gradient-to-r from-green-400 to-blue-500 text-black font-bold">Crear sala</button>
+
+        <div className="bg-[#0f1724] p-3 rounded-xl border border-gray-800">
+          <div className="font-semibold mb-2">Unirse a sala</div>
+          <input value={joinCode} onChange={(e)=>setJoinCode(e.target.value.toUpperCase())} placeholder="Código de sala (ej: 4L3X)" className="w-full p-3 mb-2 rounded bg-[#0b1220] border border-gray-700" />
+          <button onClick={()=>joinRoom(joinCode, joinName || (me && me.name))} className="w-full py-2 rounded-lg bg-white/10">Unirse</button>
+          <div className="text-xs text-gray-400 mt-2">Si el host ya creó la sala, introduce el código y únete.</div>
+        </div>
+
+        <div className="text-xs text-gray-500 text-center mt-Versíon (1.04): <strong>{roomId || '-'}</strong></div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------------- App Component ---------------------- */
 function App(){
   const [ready, setReady] = useState(false);
-  const [me, setMe] = useState(loadLS(playerLSkey, null)); // {uid, name, avatar}
+  const [me, setMe] = useState(loadLS(playerLSkey, null)); 
   const [roomId, setRoomId] = useState(loadLS(roomLSkey, null));
-  const [view, setView] = useState('home'); // home | lobby | game | finished
-  const [roomState, setRoomState] = useState(null); // mirror of DB room
-  const [players, setPlayers] = useState([]); // array from DB
-  const [localRole, setLocalRole] = useState(null); // 'impostor' | 'word' | null
+  const [view, setView] = useState('home'); 
+  const [roomState, setRoomState] = useState(null); 
+  const [players, setPlayers] = useState([]); 
+  const [localRole, setLocalRole] = useState(null); 
   const [secretWord, setSecretWord] = useState('');
   const [category, setCategory] = useState('');
   const [isHost, setIsHost] = useState(false);
 
-  // swipe refs (we reuse your swipe logic locally per player)
+  // Refs para swipe y lógica de juego
   const cardFrontRef = useRef(null);
   const containerRef = useRef(null);
   const startYRef = useRef(0);
@@ -137,25 +177,22 @@ function App(){
   const [containerHeight, setContainerHeight] = useState(420);
   const THRESHOLD_RATIO = 0.5;
 
-  // DB listeners
   const roomRef = useRef(null);
   const playersRef = useRef(null);
   const gameRef = useRef(null);
 
-  // initial auth & restore
+  // Auth init
   useEffect(()=> {
     (async ()=> {
       const authRes = await ensureAuth();
       let myPlayer = me;
       if (!myPlayer) {
-        // create simple local player object for anonymous usage
         const name = 'Jugador ' + Math.floor(Math.random()*900+100);
         const avatar = avatars[Math.floor(Math.random()*avatars.length)];
         myPlayer = { uid: authRes.uid, name, avatar };
         saveLS(playerLSkey, myPlayer);
         setMe(myPlayer);
       } else {
-        // ensure uid matches
         myPlayer.uid = authRes.uid || myPlayer.uid;
         saveLS(playerLSkey, myPlayer);
         setMe(myPlayer);
@@ -164,7 +201,6 @@ function App(){
     })();
   }, []);
 
-  // update container height for threshold
   useEffect(() => {
     const update = () => {
       const el = containerRef.current;
@@ -178,7 +214,6 @@ function App(){
     return ()=> window.removeEventListener('resize', update);
   }, []);
 
-  // When roomId changes (join/create), attach listeners
   useEffect(()=> {
     if (!ready) return;
     cleanupRoomListeners();
@@ -189,39 +224,32 @@ function App(){
       saveLS(roomLSkey, null);
       return;
     }
-    // attach DB refs
     roomRef.current = db.ref('rooms/' + roomId);
     playersRef.current = db.ref('rooms/' + roomId + '/players');
     gameRef.current = db.ref('rooms/' + roomId + '/game');
 
-    // listen meta & game
     roomRef.current.child('meta').on('value', snap => {
       const val = snap.val();
       setRoomState(prev => ({ ...prev, meta: val }));
       if (val && val.hostUid === (me && me.uid)) setIsHost(true); else setIsHost(false);
     });
 
-    // listen players list
     playersRef.current.on('value', snap => {
       const obj = snap.val() || {};
       const arr = Object.keys(obj).map(k => ({ uid: k, ...obj[k] }));
-      // sort by joinedAt
       arr.sort((a,b) => (a.joinedAt||0) - (b.joinedAt||0));
       setPlayers(arr);
       setRoomState(prev => ({ ...prev, players: obj }));
     });
 
-    // listen game state
     gameRef.current.on('value', snap => {
       const val = snap.val();
       setRoomState(prev => ({ ...prev, game: val }));
       if (val) {
         setCategory(val.category || '');
         setSecretWord(val.word || '');
-        // determine local role if game state is playing
         if (val.state === 'playing') {
           setView('game');
-          // each player should read only their role: DB stores role mapping by uid -> {role:'impostor'|'word'}
           if (val.roles && me && me.uid) {
             const myRole = val.roles[me.uid] ? val.roles[me.uid].role : null;
             setLocalRole(myRole);
@@ -239,33 +267,20 @@ function App(){
     });
 
     saveLS(roomLSkey, roomId);
-
     return () => cleanupRoomListeners();
   }, [roomId, ready, me && me.uid]);
 
   function cleanupRoomListeners() {
-    if (roomRef.current) {
-      roomRef.current.off();
-      roomRef.current = null;
-    }
-    if (playersRef.current) {
-      playersRef.current.off();
-      playersRef.current = null;
-    }
-    if (gameRef.current) {
-      gameRef.current.off();
-      gameRef.current = null;
-    }
+    if (roomRef.current) { roomRef.current.off(); roomRef.current = null; }
+    if (playersRef.current) { playersRef.current.off(); playersRef.current = null; }
+    if (gameRef.current) { gameRef.current.off(); gameRef.current = null; }
   }
 
-  /* ----------------- Room management (create / join / leave) ----------------- */
   async function createRoom() {
     const id = makeRoomId();
     const meta = { hostUid: me.uid, createdAt: Date.now() };
-    // write initial room: meta and empty players
     await db.ref('rooms/' + id + '/meta').set(meta);
     await db.ref('rooms/' + id + '/players/' + me.uid).set({ name: me.name, avatar: me.avatar, joinedAt: Date.now() });
-    // set initial game state
     await db.ref('rooms/' + id + '/game').set({ state: 'lobby' });
     setRoomId(id);
     setIsHost(true);
@@ -276,7 +291,6 @@ function App(){
     if (!code) return alert('Código vacío');
     const roomSnap = await db.ref('rooms/' + code + '/meta').get();
     if (!roomSnap.exists()) return alert('Sala no encontrada: verifica el código');
-    // save my player info under players
     const playerName = nameOverride || me.name;
     await db.ref('rooms/' + code + '/players/' + me.uid).set({ name: playerName, avatar: me.avatar, joinedAt: Date.now() });
     setRoomId(code);
@@ -285,21 +299,16 @@ function App(){
 
   async function leaveRoom() {
     if (!roomId) return;
-    // remove player from players list
     await db.ref('rooms/' + roomId + '/players/' + me.uid).remove();
-    // if host leaves: optionally transfer host or delete room if empty
     const metaSnap = await db.ref('rooms/' + roomId + '/meta').get();
     const meta = metaSnap.val();
     if (meta && meta.hostUid === me.uid) {
-      // check remaining players
       const playersSnap = await db.ref('rooms/' + roomId + '/players').get();
       const obj = playersSnap.val() || {};
       const uids = Object.keys(obj);
       if (uids.length === 0) {
-        // delete room
         await db.ref('rooms/' + roomId).remove();
       } else {
-        // assign new host as first player
         const newHostUid = uids[0];
         await db.ref('rooms/' + roomId + '/meta/hostUid').set(newHostUid);
       }
@@ -309,28 +318,21 @@ function App(){
     saveLS(roomLSkey, null);
   }
 
-  /* ----------------- Host: start game ----------------- */
   async function hostStartGame(settings = {}) {
     if (!isHost) return alert('Solo el host puede iniciar la partida');
-    // choose category & word
     const catIdx = Math.floor(Math.random() * wordCategories.length);
     const cat = wordCategories[catIdx];
     const word = cat.words[Math.floor(Math.random()*cat.words.length)];
-    // fetch players list
     const playersSnap = await db.ref('rooms/' + roomId + '/players').get();
     const playersObj = playersSnap.val() || {};
     const uids = Object.keys(playersObj);
     if (uids.length < 3) return alert('Se necesitan al menos 3 jugadores para iniciar');
-    // choose impostor using simple weighted logic (avoid repeats) - here the host chooses and saves roles
-    // For stronger security move this logic to Cloud Function
-    // Load history if exists
+    
     const historySnap = await db.ref('rooms/' + roomId + '/meta/history').get();
     const history = historySnap.exists() ? historySnap.val() : [];
-    // simple anti-repeat: avoid last N impostors
     const recallN = settings.recallRounds || 3;
     const penalty = settings.penaltyPerRecent || 0.6;
 
-    // compute weights
     const weights = uids.map(uid => 1);
     const lastN = history.slice(-recallN);
     uids.forEach((uid,i) => {
@@ -346,35 +348,30 @@ function App(){
     }
     const impostorUid = uids[chosenIdx];
 
-    // Build roles map
     const roles = {};
     for (let u of uids) {
       roles[u] = { role: (u === impostorUid ? 'impostor' : 'word') };
     }
 
-    // Save game object atomically
     await db.ref('rooms/' + roomId + '/game').set({
       state: 'playing',
       category: cat.category,
-      word: word, // note: this is readable in DB. For more secrecy, consider storing the word only under players who should see it (or encrypt it)
+      word: word,
       startedAt: Date.now(),
       impostorUid,
       roles,
     });
 
-    // update meta history: push impostorUid (for anti-repeat next rounds)
     const nextHistory = (history||[]).concat([impostorUid]).slice(-50);
     await db.ref('rooms/' + roomId + '/meta/history').set(nextHistory);
   }
 
-  /* ----------------- Host: finish game ----------------- */
   async function hostFinishGame() {
     if (!isHost) return;
-    // set game state to finished
     await db.ref('rooms/' + roomId + '/game/state').set('finished');
   }
 
-  /* ----------------- Local swipe logic (per player) ----------------- */
+  // Swipe logic
   const THRESHOLD = useRef(0);
   useEffect(()=> { THRESHOLD.current = -Math.round(containerHeight * THRESHOLD_RATIO); }, [containerHeight]);
 
@@ -428,17 +425,11 @@ function App(){
     setShowNext(true);
   }
 
-  /* ----------------- UI Actions for players ----------------- */
   async function playerRevealDone() {
-    // local only: after revealing, maybe mark ready in DB
-    if (roomId) {
-      await db.ref('rooms/' + roomId + '/players/' + me.uid + '/ready').set(true);
-    }
+    if (roomId) await db.ref('rooms/' + roomId + '/players/' + me.uid + '/ready').set(true);
   }
   async function playerResetReady() {
-    if (roomId) {
-      await db.ref('rooms/' + roomId + '/players/' + me.uid + '/ready').set(false);
-    }
+    if (roomId) await db.ref('rooms/' + roomId + '/players/' + me.uid + '/ready').set(false);
   }
   async function hostResetReadyAll() {
     if (!isHost) return;
@@ -449,54 +440,8 @@ function App(){
     await db.ref('rooms/' + roomId + '/players').update(updates);
   }
 
-  /* ----------------- Helper UI components ----------------- */
-  function HomeView(){
-    const [joinCode, setJoinCode] = useState('');
-    const [joinName, setJoinName] = useState(me?me.name:'');
-    return (
-      <div className="min-h-screen flex flex-col p-6 items-center justify-start">
-        <div className="text-center mt-6">
-          <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">IMPOSTOR</h1>
-          <p className="text-gray-300 mt-1">Multijugador — crea o únete a una sala</p>
-        </div>
-
-        <div className="w-full max-w-md mt-8 space-y-4">
-          <div className="bg-[#0f1724] p-4 rounded-xl border border-gray-800">
-            <div className="font-semibold mb-2">Tu perfil</div>
-            <div className="flex items-center gap-3">
-              <div className="text-3xl">{me && me.avatar}</div>
-
-              {/* ---------- INPUT CORREGIDO: NO HACER PETICIONES POR CADA TECLA ---------- */}
-              <input
-                value={me?me.name:''}
-                onChange={(e)=>{
-                  const nm = e.target.value;
-                  const newMe = {...me, name:nm};
-                  setMe(newMe);
-                  saveLS(playerLSkey,newMe);
-                  // Se eliminó la línea: db.ref().child('temp').set(null);
-                  // Hacer una escritura a Firebase por cada tecla colapsa el UI.
-                }}
-                className="bg-transparent border-b border-gray-700 focus:outline-none flex-1 py-1"
-              />
-            </div>
-            <div className="text-xs text-gray-400 mt-2">Tu sesión es anónima. Usa un nombre para que tus amigos te reconozcan.</div>
-          </div>
-
-          <button onClick={createRoom} className="w-full py-3 rounded-xl bg-gradient-to-r from-green-400 to-blue-500 text-black font-bold">Crear sala</button>
-
-          <div className="bg-[#0f1724] p-3 rounded-xl border border-gray-800">
-            <div className="font-semibold mb-2">Unirse a sala</div>
-            <input value={joinCode} onChange={(e)=>setJoinCode(e.target.value.toUpperCase())} placeholder="Código de sala (ej: 4L3X)" className="w-full p-3 mb-2 rounded bg-[#0b1220] border border-gray-700" />
-            <button onClick={()=>joinRoom(joinCode, joinName)} className="w-full py-2 rounded-lg bg-white/10">Unirse</button>
-            <div className="text-xs text-gray-400 mt-2">Si el host ya creó la sala, introduce el código y únete.</div>
-          </div>
-
-          <div className="text-xs text-gray-500 text-center mt-4">Código actual (local): <strong>{roomId || '-'}</strong></div>
-        </div>
-      </div>
-    );
-  }
+  // --- Vistas internas (Estas no tienen inputs que re-rendericen App, así que se pueden quedar aquí o sacarse también) ---
+  // Nota: Para arreglar el bug principal (input de nombre), bastaba con sacar HomeView.
 
   function LobbyView(){
     return (
@@ -577,9 +522,6 @@ function App(){
                 <div className="text-6xl mb-4">🤫</div>
                 <h2 className="text-3xl font-black text-red-500 mb-2">IMPOSTOR</h2>
                 <p className="text-red-200 px-4 text-sm">Engaña a todos. No conoces la palabra.</p>
-                {/* MODIFICACIÓN: Eliminada la línea que muestra la categoría aquí.
-                   Esto evita que el Impostor vea de qué va la palabra secreta.
-                */}
               </div>
             ) : (
               <div className="text-center">
@@ -617,7 +559,6 @@ function App(){
   }
 
   function FinishedView(){
-    // show simple summary to all players
     const impostorUid = roomState && roomState.game && roomState.game.impostorUid;
     const impostor = players.find(p => p.uid === impostorUid);
     return (
@@ -642,16 +583,15 @@ function App(){
     );
   }
 
-  /* ----------------- Render decision ----------------- */
   if (!ready) return (<div className="min-h-screen flex items-center justify-center">Cargando...</div>);
 
   return (
     <>
-      {(!roomId && view === 'home') && <HomeView />}
+      {(!roomId && view === 'home') && <HomeView me={me} setMe={setMe} createRoom={createRoom} joinRoom={joinRoom} roomId={roomId} />}
       {(roomId && view === 'lobby') && <LobbyView />}
       {(roomId && view === 'game') && <GameView />}
       {(roomId && view === 'finished') && <FinishedView />}
-      {/* Simple footer / quick-leave */}
+      
       <div style={{position:'fixed', right:12, bottom:12}}>
         <div className="bg-white/5 p-2 rounded-lg text-xs text-gray-300">
           {me ? <div>Tu: {me.name}</div> : null}
@@ -663,19 +603,8 @@ function App(){
   );
 }
 
-/* ---------------------- Render App ---------------------- */
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 
   </script>
-
-  <!--
-    NOTAS IMPORTANTES (leer antes de desplegar):
-    1) Seguridad Firebase:
-       - Actualmente este archivo escribe libremente en Realtime DB (tu regla temporal lo permite).
-       - Para producción, configura reglas que restrinjan escritura solo a usuarios autenticados y/o validen la estructura.
-    2) Privacidad y palabra:
-       - Actualmente la palabra está en /rooms/<ROOM>/game/word (legible en DB). Para mayor seguridad, guárdala sólo donde corresponda.
-  -->
-
 </body>
 </html>
