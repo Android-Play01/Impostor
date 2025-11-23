@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Impostor - Multijugador</title>
+  <title>Impostor - Multijugador (Más Palabras)</title>
 
   <!-- React & ReactDOM -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -36,7 +36,8 @@
   <script type="text/babel">
 /* ------------------------------
   Impostor Multijugador (Single File)
-  - Usa Firebase Realtime Database (compat)
+  - Firebase Realtime Database
+  - Actualización: +150 palabras y lógica anti-repetición
 -------------------------------*/
 
 const { useState, useEffect, useRef } = React;
@@ -57,14 +58,57 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 
-/* ---------------------- Datos locales ---------------------- */
+/* ---------------------- Datos del Juego (Ampliado) ---------------------- */
 const wordCategories = [
-  { category: "Lugares", words: ["Hospital", "Escuela", "Playa", "Aeropuerto", "Cine", "Cementerio", "Biblioteca", "Gimnasio"] },
-  { category: "Comida", words: ["Pizza", "Sushi", "Hamburguesa", "Tacos", "Helado", "Chocolate", "Ensalada", "Paella"] },
-  { category: "Animales", words: ["Elefante", "Jirafa", "León", "Pingüino", "Delfín", "Perro", "Gato", "Koala"] },
-  { category: "Objetos", words: ["Teléfono", "Cuchara", "Reloj", "Silla", "Lámpara", "Zapato", "Guitarra", "Espejo"] },
-  { category: "Profesiones", words: ["Doctor", "Policía", "Bombero", "Profesor", "Astronauta", "Cocinero", "Payaso", "Mecánico"] }
+  { 
+    category: "Lugares", 
+    words: [
+      "Hospital", "Escuela", "Playa", "Aeropuerto", "Cine", "Cementerio", "Biblioteca", "Gimnasio", 
+      "Supermercado", "Banco", "Parque de Diversiones", "Iglesia", "Museo", "Cárcel", "Estación de Tren", 
+      "Zoológico", "Hotel", "Restaurante", "Farmacia", "Teatro", "Estadio", "Discoteca", "Casino", 
+      "Faro", "Castillo", "Cueva", "Montaña", "Desierto", "Selva", "Submarino", "Estación Espacial", "Circo"
+    ] 
+  },
+  { 
+    category: "Comida", 
+    words: [
+      "Pizza", "Sushi", "Hamburguesa", "Tacos", "Helado", "Chocolate", "Ensalada", "Paella", 
+      "Espagueti", "Sopa", "Pollo Frito", "Kebab", "Burrito", "Pastel", "Fruta", "Huevo Frito", 
+      "Cereal", "Panqueques", "Donas", "Galletas", "Palomitas", "Nachos", "Queso", "Jamón", 
+      "Pescado", "Mariscos", "Curry", "Ramen", "Empanada", "Arepa", "Croissant", "Churros"
+    ] 
+  },
+  { 
+    category: "Animales", 
+    words: [
+      "Elefante", "Jirafa", "León", "Pingüino", "Delfín", "Perro", "Gato", "Koala", 
+      "Tigre", "Oso", "Águila", "Tiburón", "Ballena", "Serpiente", "Mono", "Canguro", 
+      "Cocodrilo", "Tortuga", "Caballo", "Vaca", "Cerdo", "Oveja", "Conejo", "Ratón", 
+      "Murciélago", "Búho", "Lobo", "Zorro", "Panda", "Loro", "Camello", "Hipopótamo"
+    ] 
+  },
+  { 
+    category: "Objetos", 
+    words: [
+      "Teléfono", "Cuchara", "Reloj", "Silla", "Lámpara", "Zapato", "Guitarra", "Espejo", 
+      "Libro", "Llaves", "Gafas", "Botella", "Cuchillo", "Tenedor", "Plato", "Vaso", 
+      "Computadora", "Televisión", "Cámara", "Mochila", "Bicicleta", "Coche", "Almohada", 
+      "Cama", "Cepillo de Dientes", "Peine", "Tijeras", "Martillo", "Destornillador", "Pincel", 
+      "Lápiz", "Cuaderno", "Paraguas", "Billetera"
+    ] 
+  },
+  { 
+    category: "Profesiones", 
+    words: [
+      "Doctor", "Policía", "Bombero", "Profesor", "Astronauta", "Cocinero", "Payaso", "Mecánico", 
+      "Dentista", "Enfermero", "Piloto", "Juez", "Abogado", "Carpintero", "Electricista", 
+      "Pintor", "Escritor", "Músico", "Actor", "Cantante", "Bailarín", "Granjero", "Pescador", 
+      "Soldado", "Científico", "Detective", "Mago", "Arquitecto", "Veterinario", "Fotógrafo", 
+      "Periodista", "Atleta"
+    ] 
+  }
 ];
+
 const avatars = ["👽","👻","🤖","🤡","👹","🤠","😎","🦄","🐲","🎃","🐯","🐶","🦊","🦁"];
 
 /* ---------------------- Utils ---------------------- */
@@ -103,18 +147,17 @@ async function ensureAuth() {
   return { uid: user.uid, fallback:false };
 }
 
-/* ---------------------- Helper UI components (EXTRAÍDOS FUERA DE APP PARA EVITAR RE-RENDER BUG) ---------------------- */
+/* ---------------------- Helper UI components ---------------------- */
 
 function HomeView({ me, setMe, createRoom, joinRoom, roomId }){
   const [joinCode, setJoinCode] = useState('');
-  // Usamos me.name directamente para unirse si no se escribe otro
   const [joinName, setJoinName] = useState(me ? me.name : '');
 
   return (
     <div className="min-h-screen flex flex-col p-6 items-center justify-start">
       <div className="text-center mt-6">
         <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">IMPOSTOR</h1>
-        <p className="text-gray-300 mt-1">Multijugador — crea o únete a una sala</p>
+        <p className="text-gray-300 mt-1">Más palabras, cero repeticiones.</p>
       </div>
 
       <div className="w-full max-w-md mt-8 space-y-4">
@@ -122,8 +165,6 @@ function HomeView({ me, setMe, createRoom, joinRoom, roomId }){
           <div className="font-semibold mb-2">Tu perfil</div>
           <div className="flex items-center gap-3">
             <div className="text-3xl">{me && me.avatar}</div>
-
-            {/* Input corregido: Al estar HomeView fuera de App, el foco se mantiene */}
             <input
               value={me ? me.name : ''}
               onChange={(e)=>{
@@ -135,19 +176,18 @@ function HomeView({ me, setMe, createRoom, joinRoom, roomId }){
               className="bg-transparent border-b border-gray-700 focus:outline-none flex-1 py-1"
             />
           </div>
-          <div className="text-xs text-gray-400 mt-2">Tu sesión es anónima. Usa un nombre para que tus amigos te reconozcan.</div>
+          <div className="text-xs text-gray-400 mt-2">Usa un nombre para que tus amigos te reconozcan.</div>
         </div>
 
         <button onClick={createRoom} className="w-full py-3 rounded-xl bg-gradient-to-r from-green-400 to-blue-500 text-black font-bold">Crear sala</button>
 
         <div className="bg-[#0f1724] p-3 rounded-xl border border-gray-800">
           <div className="font-semibold mb-2">Unirse a sala</div>
-          <input value={joinCode} onChange={(e)=>setJoinCode(e.target.value.toUpperCase())} placeholder="Código de sala (ej: 4L3X)" className="w-full p-3 mb-2 rounded bg-[#0b1220] border border-gray-700" />
+          <input value={joinCode} onChange={(e)=>setJoinCode(e.target.value.toUpperCase())} placeholder="Código de sala" className="w-full p-3 mb-2 rounded bg-[#0b1220] border border-gray-700" />
           <button onClick={()=>joinRoom(joinCode, joinName || (me && me.name))} className="w-full py-2 rounded-lg bg-white/10">Unirse</button>
-          <div className="text-xs text-gray-400 mt-2">Si el host ya creó la sala, introduce el código y únete.</div>
         </div>
 
-        <div className="text-xs text-gray-500 text-center mt-4">Código actual (local): <strong>{roomId || '-'}</strong></div>
+        <div className="text-xs text-gray-500 text-center mt-4">Código actual: <strong>{roomId || '-'}</strong></div>
       </div>
     </div>
   );
@@ -166,7 +206,7 @@ function App(){
   const [category, setCategory] = useState('');
   const [isHost, setIsHost] = useState(false);
 
-  // Refs para swipe y lógica de juego
+  // Swipe logic refs
   const cardFrontRef = useRef(null);
   const containerRef = useRef(null);
   const startYRef = useRef(0);
@@ -181,7 +221,6 @@ function App(){
   const playersRef = useRef(null);
   const gameRef = useRef(null);
 
-  // Auth init
   useEffect(()=> {
     (async ()=> {
       const authRes = await ensureAuth();
@@ -278,7 +317,8 @@ function App(){
 
   async function createRoom() {
     const id = makeRoomId();
-    const meta = { hostUid: me.uid, createdAt: Date.now() };
+    // Añadimos usedWords al meta para trackear repeticiones
+    const meta = { hostUid: me.uid, createdAt: Date.now(), history: [], usedWords: [] };
     await db.ref('rooms/' + id + '/meta').set(meta);
     await db.ref('rooms/' + id + '/players/' + me.uid).set({ name: me.name, avatar: me.avatar, joinedAt: Date.now() });
     await db.ref('rooms/' + id + '/game').set({ state: 'lobby' });
@@ -318,21 +358,51 @@ function App(){
     saveLS(roomLSkey, null);
   }
 
+  // Lógica principal del Host con filtro anti-repetición
   async function hostStartGame(settings = {}) {
     if (!isHost) return alert('Solo el host puede iniciar la partida');
-    const catIdx = Math.floor(Math.random() * wordCategories.length);
-    const cat = wordCategories[catIdx];
-    const word = cat.words[Math.floor(Math.random()*cat.words.length)];
+    
+    // Obtener meta para ver historial de impostores Y palabras usadas
+    const metaSnap = await db.ref('rooms/' + roomId + '/meta').get();
+    const meta = metaSnap.val() || {};
+    const history = meta.history || [];
+    const usedWords = meta.usedWords || [];
+
+    // --- SELECCIÓN DE PALABRA (Con reintentos para evitar repetición) ---
+    let selectedWord = "";
+    let selectedCat = "";
+    let attempts = 0;
+    const maxAttempts = 50; // Límite de seguridad para no colgar el navegador
+
+    while (attempts < maxAttempts) {
+      const catIdx = Math.floor(Math.random() * wordCategories.length);
+      const cat = wordCategories[catIdx];
+      const w = cat.words[Math.floor(Math.random() * cat.words.length)];
+
+      // Si la palabra NO está en usedWords, la elegimos y salimos del bucle
+      if (!usedWords.includes(w)) {
+        selectedWord = w;
+        selectedCat = cat.category;
+        break;
+      }
+      attempts++;
+    }
+
+    // Fallback: Si por mala suerte fallan 50 intentos (casi imposible), usamos la última generada
+    if (!selectedWord) {
+      const catIdx = Math.floor(Math.random() * wordCategories.length);
+      selectedCat = wordCategories[catIdx].category;
+      selectedWord = wordCategories[catIdx].words[Math.floor(Math.random() * wordCategories[catIdx].words.length)];
+    }
+
+    // --- SELECCIÓN DE IMPOSTOR (Lógica existente) ---
     const playersSnap = await db.ref('rooms/' + roomId + '/players').get();
     const playersObj = playersSnap.val() || {};
     const uids = Object.keys(playersObj);
     if (uids.length < 3) return alert('Se necesitan al menos 3 jugadores para iniciar');
     
-    const historySnap = await db.ref('rooms/' + roomId + '/meta/history').get();
-    const history = historySnap.exists() ? historySnap.val() : [];
     const recallN = settings.recallRounds || 3;
     const penalty = settings.penaltyPerRecent || 0.6;
-
     const weights = uids.map(uid => 1);
     const lastN = history.slice(-recallN);
     uids.forEach((uid,i) => {
@@ -353,17 +423,25 @@ function App(){
       roles[u] = { role: (u === impostorUid ? 'impostor' : 'word') };
     }
 
+    // Guardar estado del juego
     await db.ref('rooms/' + roomId + '/game').set({
       state: 'playing',
-      category: cat.category,
-      word: word,
+      category: selectedCat,
+      word: selectedWord,
       startedAt: Date.now(),
       impostorUid,
       roles,
     });
 
-    const nextHistory = (history||[]).concat([impostorUid]).slice(-50);
-    await db.ref('rooms/' + roomId + '/meta/history').set(nextHistory);
+    // Actualizar historial: Impostor Y Palabras Usadas
+    // Guardamos las últimas 40 palabras para asegurar variedad
+    const nextHistory = (history).concat([impostorUid]).slice(-50);
+    const nextUsedWords = (usedWords).concat([selectedWord]).slice(-40); 
+
+    await db.ref('rooms/' + roomId + '/meta').update({
+      history: nextHistory,
+      usedWords: nextUsedWords
+    });
   }
 
   async function hostFinishGame() {
@@ -371,7 +449,7 @@ function App(){
     await db.ref('rooms/' + roomId + '/game/state').set('finished');
   }
 
-  // Swipe logic
+  // --- Swipe Logic (Igual que antes) ---
   const THRESHOLD = useRef(0);
   useEffect(()=> { THRESHOLD.current = -Math.round(containerHeight * THRESHOLD_RATIO); }, [containerHeight]);
 
@@ -428,9 +506,6 @@ function App(){
   async function playerRevealDone() {
     if (roomId) await db.ref('rooms/' + roomId + '/players/' + me.uid + '/ready').set(true);
   }
-  async function playerResetReady() {
-    if (roomId) await db.ref('rooms/' + roomId + '/players/' + me.uid + '/ready').set(false);
-  }
   async function hostResetReadyAll() {
     if (!isHost) return;
     const snap = await db.ref('rooms/' + roomId + '/players').get();
@@ -440,8 +515,7 @@ function App(){
     await db.ref('rooms/' + roomId + '/players').update(updates);
   }
 
-  // --- Vistas internas (Estas no tienen inputs que re-rendericen App, así que se pueden quedar aquí o sacarse también) ---
-  // Nota: Para arreglar el bug principal (input de nombre), bastaba con sacar HomeView.
+  // --- Views ---
 
   function LobbyView(){
     return (
@@ -480,8 +554,7 @@ function App(){
             <button onClick={() => { if (isHost) hostStartGame(); else alert('Solo el host puede iniciar'); }} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 font-bold">INICIAR PARTIDA</button>
             <button onClick={leaveRoom} className="py-3 px-4 rounded-xl bg-white/10">Salir</button>
           </div>
-
-          <div className="text-xs text-gray-400">Comparte este código con tus amigos para que se unan: <strong>{roomId}</strong></div>
+          <div className="text-xs text-gray-400 text-center">Código para amigos: <strong>{roomId}</strong></div>
         </div>
       </div>
     );
@@ -541,7 +614,6 @@ function App(){
             <span style={{fontSize:'1.4rem'}}>{currentPlayer.avatar}</span>
             <span>ENTENDIDO</span>
           </button>
-          <p className="text-center text-xs text-gray-400 mt-3">Una vez listo, espera a que todos confirmen o el host termine la ronda.</p>
         </div>
 
         <div className="w-full max-w-xs mt-4">
@@ -551,7 +623,7 @@ function App(){
               <button onClick={()=>hostResetReadyAll()} className="py-3 px-4 rounded-xl bg-white/10">Reset Ready</button>
             </div>
           ) : (
-            <div className="text-xs text-gray-400 text-center mt-2">Esperando acciones del host...</div>
+            <div className="text-xs text-gray-400 text-center mt-2">Esperando al host...</div>
           )}
         </div>
       </div>
@@ -566,7 +638,6 @@ function App(){
         <div className="text-center mb-6">
           <div className="text-6xl mb-4">🎉</div>
           <h1 className="text-3xl font-bold">Ronda finalizada</h1>
-          <p className="text-gray-400 mt-2">Gracias por jugar</p>
         </div>
 
         <div className="bg-[#0f1724] p-4 rounded-xl border border-gray-800 mb-4 text-center">
@@ -594,9 +665,8 @@ function App(){
       
       <div style={{position:'fixed', right:12, bottom:12}}>
         <div className="bg-white/5 p-2 rounded-lg text-xs text-gray-300">
-          {me ? <div>Tu: {me.name}</div> : null}
-          <div>Room: {roomId || '-'}</div>
-          {roomId && <button onClick={leaveRoom} className="text-xs mt-1 underline">Salir</button>}
+          {me ? <div>{me.name}</div> : null}
+          <div>Sala: {roomId || '-'}</div>
         </div>
       </div>
     </>
