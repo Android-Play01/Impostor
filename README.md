@@ -46,7 +46,7 @@ Canvas Confetti: Un efectito de celebración para cuando termina la ronda.
 
 # Cómo se prueba?
 
-Es súper fácil, no hay que instalar nada raro:
+Es súper fácil:
 
 Descargas el código.
 
