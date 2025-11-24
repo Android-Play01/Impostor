@@ -3,7 +3,7 @@ Quien es el Impostor?
 
 Este es un proyecto personal que armé para jugar con mis amigos y familia en reuniones. Es el típico juego de deducción (como el Among Us o Spyfall) donde todos reciben una palabra secreta menos uno: el Impostor. La gracia es descubrir quién está mintiendo.
 
-# ¿De qué trata?
+# De qué trata?
 Básicamente quería algo rápido para usar en el celular sin tener que bajar apps. Entras, pones tu nombre y listo.
 
 La idea es que todos ven una palabra en su pantalla (ejemplo: "Playa"), pero el impostor solo ve que es el impostor. Nadie sabe quién es quién. Tienen que ir hablando o diciendo palabras relacionadas para sacarle la ficha al que no sabe nada.
