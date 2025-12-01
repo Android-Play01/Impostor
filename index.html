@@ -1,26 +1,12 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Impostor - Edición Profesional</title>
-  
-        <link rel="icon" type="image/png" 
-          href="https://raw.githubusercontent.com/TuUsuario/TuRepo/main/favicon-96x96.png" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" 
-          href="https://raw.githubusercontent.com/TuUsuario/TuRepo/main/favicon.svg" />
-    <link rel="shortcut icon" 
-          href="https://raw.githubusercontent.com/TuUsuario/TuRepo/main/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" 
-          href="https://raw.githubusercontent.com/TuUsuario/TuRepo/main/apple-touch-icon.png" />
-    
-    <meta name="apple-mobile-web-app-title" content="MyWebSite" />
-    <link rel="manifest" href="/site.webmanifest" />
-    </head>
-<body>
-    </body>
-</html>
-
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Impostor - Edición Definitiva (Focus Fix)</title>
+  
+  <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/TuUsuario/TuRepo/main/favicon-96x96.png" sizes="96x96" />
+  
   <!-- React & ReactDOM -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -50,7 +36,6 @@
       -webkit-font-smoothing: antialiased; 
     }
 
-    /* Animación de Fondo */
     #bg-canvas {
       position: fixed;
       top: 0;
@@ -61,7 +46,6 @@
       background: radial-gradient(circle at 50% 10%, #1a1f35 0%, #050505 100%);
     }
 
-    /* Glassmorphism Classes */
     .glass-panel {
       background: rgba(255, 255, 255, 0.03);
       backdrop-filter: blur(16px);
@@ -80,12 +64,12 @@
       border-color: #8b5cf6;
       background: rgba(0, 0, 0, 0.5);
       box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+      outline: none;
     }
 
     /* Game Card 3D */
     .card-container { 
         perspective: 1200px; 
-        /* FIX 1: Bloquear comportamientos táctiles del navegador en el contenedor */
         touch-action: none;
     }
     .game-card { 
@@ -94,42 +78,50 @@
       touch-action: none; 
       user-select: none; 
       box-shadow: 0 20px 50px -12px rgba(0,0,0,0.8);
+      cursor: pointer; 
     }
-    .card-snap-back { transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    
+    .card-hidden {
+        pointer-events: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+    }
 
-    /* Custom Animations */
-    @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
     .animate-float { animation: float 6s ease-in-out infinite; }
+    @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
 
-    @keyframes pulse-soft { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.8; transform: scale(0.95); } }
-    .animate-pulse-soft { animation: pulse-soft 3s infinite; }
+    @keyframes pulse-gold {
+      0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.4), inset 0 0 10px rgba(255, 215, 0, 0.2); border-color: rgba(255, 215, 0, 0.6); }
+      50% { box-shadow: 0 0 50px rgba(255, 215, 0, 0.8), inset 0 0 25px rgba(255, 215, 0, 0.4); border-color: #FFF; }
+    }
+    .turn-active {
+      animation: pulse-gold 1.5s infinite;
+      border: 2px solid #FFD700;
+      z-index: 10;
+    }
 
     @keyframes fade-in-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     .animate-enter { animation: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
     @keyframes gradient-x { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-    .animate-gradient-text {
-      background-size: 200% auto;
-      animation: gradient-x 4s linear infinite;
-    }
+    .animate-gradient-text { background-size: 200% auto; animation: gradient-x 4s linear infinite; }
 
-    /* Impostor Reveal Shake */
     @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
     .animate-shake { animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both; }
 
     .no-scrollbar::-webkit-scrollbar{display:none} .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
-    
     .font-display { font-family: 'Space Grotesk', sans-serif; }
+    
+    .player-not-ready { filter: grayscale(100%) opacity(0.4); transition: all 0.5s ease; }
+    .player-ready { filter: grayscale(0%) opacity(1); transition: all 0.5s ease; }
+
   </style>
 </head>
 <body>
-  <!-- Fondo animado por JS -->
   <canvas id="bg-canvas"></canvas>
-  
   <div id="root"></div>
 
   <script>
-    // Configuración visual del canvas de fondo (Partículas)
     const canvas = document.getElementById('bg-canvas');
     const ctx = canvas.getContext('2d');
     let width, height;
@@ -143,9 +135,7 @@
     resize();
 
     class Particle {
-      constructor() {
-        this.reset();
-      }
+      constructor() { this.reset(); }
       reset() {
         this.x = Math.random() * width;
         this.y = Math.random() * height;
@@ -155,8 +145,7 @@
         this.alpha = Math.random() * 0.5 + 0.1;
       }
       update() {
-        this.x += this.vx;
-        this.y += this.vy;
+        this.x += this.vx; this.y += this.vy;
         if (this.x < 0 || this.x > width) this.vx *= -1;
         if (this.y < 0 || this.y > height) this.vy *= -1;
       }
@@ -167,15 +156,10 @@
         ctx.fill();
       }
     }
-
     for (let i = 0; i < 50; i++) particles.push(new Particle());
-
     function animateBg() {
       ctx.clearRect(0, 0, width, height);
-      particles.forEach(p => {
-        p.update();
-        p.draw();
-      });
+      particles.forEach(p => { p.update(); p.draw(); });
       requestAnimationFrame(animateBg);
     }
     animateBg();
@@ -183,10 +167,10 @@
 
   <script type="text/babel">
 /* ------------------------------
-  Impostor Multijugador - Professional Edition
+  Impostor Multijugador - Professional Edition v6.1 (Strong Focus Fix)
 -------------------------------*/
 
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useMemo } = React;
 
 /* ---------------------- CONFIG ---------------------- */
 const firebaseConfig = {
@@ -204,8 +188,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 
-/* ---------------------- Datos del Juego ---------------------- */
-// (Misma lista de palabras, sin cambios)
+/* ---------------------- Datos ---------------------- */
 const wordCategories = [
   { category: "Lugares", words: ["Hospital", "Escuela", "Playa", "Aeropuerto", "Cine", "Cementerio", "Biblioteca", "Gimnasio", "Supermercado", "Banco", "Parque de Diversiones", "Iglesia", "Museo", "Cárcel", "Estación de Tren", "Zoológico", "Hotel", "Restaurante", "Farmacia", "Teatro", "Estadio", "Discoteca", "Casino", "Faro", "Castillo", "Cueva", "Montaña", "Desierto", "Selva", "Submarino", "Estación Espacial", "Circo"] },
   { category: "Comida", words: ["Pizza", "Sushi", "Hamburguesa", "Tacos", "Helado", "Chocolate", "Ensalada", "Paella", "Espagueti", "Sopa", "Pollo Frito", "Kebab", "Burrito", "Pastel", "Fruta", "Huevo Frito", "Cereal", "Panqueques", "Donas", "Galletas", "Palomitas", "Nachos", "Queso", "Jamón", "Pescado", "Mariscos", "Curry", "Ramen", "Empanada", "Arepa", "Croissant", "Churros"] },
@@ -214,7 +197,7 @@ const wordCategories = [
   { category: "Profesiones", words: ["Doctor", "Policía", "Bombero", "Profesor", "Astronauta", "Cocinero", "Payaso", "Mecánico", "Dentista", "Enfermero", "Piloto", "Juez", "Abogado", "Carpintero", "Electricista", "Pintor", "Escritor", "Músico", "Actor", "Cantante", "Bailarín", "Granjero", "Pescador", "Soldado", "Científico", "Detective", "Mago", "Arquitecto", "Veterinario", "Fotógrafo", "Periodista", "Atleta"] }
 ];
 
-const avatars = ["👽","👻","🤖","🤡","👹","🤠","😎","🦄","🐲","🎃","🐯","🐶","🦊","🦁"];
+const avatars = ["👽","👻","🤖","🤡","👹","🤠","😎","🦄","🐲","🎃","🐯","🐶","🦊","🦁","👺","👾"];
 
 /* ---------------------- Utils ---------------------- */
 const uidKey = 'impostor_uid_v2';
@@ -225,6 +208,16 @@ function makeRoomId() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let s=''; for(let i=0;i<4;i++) s += chars[Math.floor(Math.random()*chars.length)];
   return s;
+}
+
+function shuffleArray(array) {
+  let currentIndex = array.length, randomIndex;
+  while (currentIndex != 0) {
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+    [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+  }
+  return array;
 }
 
 function saveLS(key, value){ try{ localStorage.setItem(key, JSON.stringify(value)); } catch(e){} }
@@ -239,7 +232,6 @@ async function ensureAuth() {
       user = result.user;
       saveLS(uidKey, user.uid);
     } catch (err) {
-      console.error('Auth error', err);
       let fallbackId = loadLS(uidKey, null);
       if (!fallbackId) {
         fallbackId = 'anon_' + Math.random().toString(36).slice(2,10);
@@ -252,14 +244,13 @@ async function ensureAuth() {
 }
 
 /* ---------------------- UI Components ---------------------- */
-
-/* Botón Genérico Bonito */
 function Button({ onClick, children, variant = 'primary', className = '', disabled = false }) {
   const baseStyle = "w-full py-4 rounded-2xl font-bold transition-all duration-200 transform active:scale-95 flex items-center justify-center gap-2";
   const variants = {
     primary: "bg-gradient-to-r from-violet-600 to-fuchsia-600 shadow-[0_0_20px_rgba(124,58,237,0.5)] hover:shadow-[0_0_30px_rgba(124,58,237,0.7)] text-white",
     secondary: "glass-panel hover:bg-white/10 text-white",
     danger: "bg-gradient-to-r from-red-600 to-rose-600 shadow-[0_0_20px_rgba(225,29,72,0.5)] text-white",
+    gold: "bg-gradient-to-r from-amber-400 to-orange-500 shadow-[0_0_20px_rgba(251,191,36,0.5)] text-black",
     disabled: "bg-gray-800/50 text-gray-500 cursor-not-allowed"
   };
   return (
@@ -284,8 +275,6 @@ function HomeView({ me, setMe, createRoom, joinRoom, roomId }){
       </div>
 
       <div className="w-full max-w-sm space-y-6">
-        
-        {/* Profile Card */}
         <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 to-pink-500"></div>
           <div className="flex items-center gap-4 relative z-10">
@@ -309,10 +298,7 @@ function HomeView({ me, setMe, createRoom, joinRoom, roomId }){
           </div>
         </div>
 
-        <Button onClick={createRoom}>
-          <span>CREAR SALA NUEVA</span>
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-        </Button>
+        <Button onClick={createRoom}><span>CREAR SALA NUEVA</span></Button>
 
         <div className="glass-panel p-1 rounded-3xl flex items-center pr-1">
           <input 
@@ -322,15 +308,9 @@ function HomeView({ me, setMe, createRoom, joinRoom, roomId }){
             className="flex-1 bg-transparent border-none text-center font-mono text-lg font-bold tracking-widest py-3 focus:ring-0 text-white placeholder-gray-600" 
           />
           <button onClick={()=>joinRoom(joinCode, joinName || (me && me.name))} className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-2xl transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+            ENTRAR
           </button>
         </div>
-
-        {roomId && (
-          <div className="text-center mt-4 p-2 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400 text-sm animate-pulse-soft">
-            Sala activa: <strong>{roomId}</strong>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -348,19 +328,21 @@ function App(){
   const [secretWord, setSecretWord] = useState('');
   const [category, setCategory] = useState('');
   const [isHost, setIsHost] = useState(false);
+  const [turnOrder, setTurnOrder] = useState([]);
+  const [currentTurnIndex, setCurrentTurnIndex] = useState(0);
+  const [statements, setStatements] = useState({});
+  const [votingState, setVotingState] = useState(null);
+  const [gameStartedAt, setGameStartedAt] = useState(0); 
 
-  // Swipe logic refs
+  // Swipe logic
   const cardFrontRef = useRef(null);
-  const cardBackRef = useRef(null); // FIX 2: Ref para la carta trasera
+  const cardBackRef = useRef(null);
   const containerRef = useRef(null);
   const startYRef = useRef(0);
-  const translateRef = useRef(0);
   const draggingRef = useRef(false);
   const [cardRevealed, setCardRevealed] = useState(false);
-  // Eliminado showNext
   const [containerHeight, setContainerHeight] = useState(420);
-  const THRESHOLD_RATIO = 0.5;
-
+  
   const roomRef = useRef(null);
   const playersRef = useRef(null);
   const gameRef = useRef(null);
@@ -384,19 +366,6 @@ function App(){
     })();
   }, []);
 
-  useEffect(() => {
-    const update = () => {
-      const el = containerRef.current;
-      if (el) {
-        const r = el.getBoundingClientRect();
-        setContainerHeight(r.height || 420);
-      }
-    };
-    update();
-    window.addEventListener('resize', update);
-    return ()=> window.removeEventListener('resize', update);
-  }, []);
-
   useEffect(()=> {
     if (!ready) return;
     cleanupRoomListeners();
@@ -404,7 +373,6 @@ function App(){
       setRoomState(null);
       setPlayers([]);
       setView('home');
-      saveLS(roomLSkey, null);
       return;
     }
     roomRef.current = db.ref('rooms/' + roomId);
@@ -422,7 +390,6 @@ function App(){
       const arr = Object.keys(obj).map(k => ({ uid: k, ...obj[k] }));
       arr.sort((a,b) => (a.joinedAt||0) - (b.joinedAt||0));
       setPlayers(arr);
-      setRoomState(prev => ({ ...prev, players: obj }));
     });
 
     gameRef.current.on('value', snap => {
@@ -431,19 +398,27 @@ function App(){
       if (val) {
         setCategory(val.category || '');
         setSecretWord(val.word || '');
+        setTurnOrder(val.turnOrder || []);
+        setCurrentTurnIndex(val.turnIndex || 0);
+        setStatements(val.statements || {});
+        
+        if (val.startedAt && val.startedAt !== gameStartedAt) {
+            setGameStartedAt(val.startedAt);
+            setCardRevealed(false); 
+        }
+
         if (val.state === 'playing') {
           setView('game');
           if (val.roles && me && me.uid) {
-            const myRole = val.roles[me.uid] ? val.roles[me.uid].role : null;
-            setLocalRole(myRole);
-          } else {
-            setLocalRole(null);
+            setLocalRole(val.roles[me.uid] ? val.roles[me.uid].role : null);
           }
+        } else if (val.state === 'voting') {
+          setView('voting');
+          setVotingState(val.voting || {});
         } else if (val.state === 'finished') {
           setView('finished');
         } else {
           setView('lobby');
-          // Reset local game state
           setCardRevealed(false);
           setLocalRole(null);
         }
@@ -454,18 +429,17 @@ function App(){
 
     saveLS(roomLSkey, roomId);
     return () => cleanupRoomListeners();
-  }, [roomId, ready, me && me.uid]);
+  }, [roomId, ready, me && me.uid, gameStartedAt]);
 
   function cleanupRoomListeners() {
-    if (roomRef.current) { roomRef.current.off(); roomRef.current = null; }
-    if (playersRef.current) { playersRef.current.off(); playersRef.current = null; }
-    if (gameRef.current) { gameRef.current.off(); gameRef.current = null; }
+    if (roomRef.current) { roomRef.current.off(); }
+    if (playersRef.current) { playersRef.current.off(); }
+    if (gameRef.current) { gameRef.current.off(); }
   }
 
   async function createRoom() {
     const id = makeRoomId();
-    const meta = { hostUid: me.uid, createdAt: Date.now(), history: [], usedWords: [] };
-    await db.ref('rooms/' + id + '/meta').set(meta);
+    await db.ref('rooms/' + id + '/meta').set({ hostUid: me.uid, createdAt: Date.now() });
     await db.ref('rooms/' + id + '/players/' + me.uid).set({ name: me.name, avatar: me.avatar, joinedAt: Date.now() });
     await db.ref('rooms/' + id + '/game').set({ state: 'lobby' });
     setRoomId(id);
@@ -473,297 +447,167 @@ function App(){
     setView('lobby');
   }
 
-  async function joinRoom(code, nameOverride) {
+  async function joinRoom(code, name) {
     if (!code) return alert('Código vacío');
-    const roomSnap = await db.ref('rooms/' + code + '/meta').get();
-    if (!roomSnap.exists()) return alert('Sala no encontrada: verifica el código');
-    const playerName = nameOverride || me.name;
-    await db.ref('rooms/' + code + '/players/' + me.uid).set({ name: playerName, avatar: me.avatar, joinedAt: Date.now() });
+    const s = await db.ref('rooms/' + code + '/meta').get();
+    if (!s.exists()) return alert('Sala no existe');
+    await db.ref('rooms/' + code + '/players/' + me.uid).set({ name, avatar: me.avatar, joinedAt: Date.now() });
     setRoomId(code);
     setView('lobby');
   }
 
   async function leaveRoom() {
-    if (!roomId) return;
-    await db.ref('rooms/' + roomId + '/players/' + me.uid).remove();
-    const metaSnap = await db.ref('rooms/' + roomId + '/meta').get();
-    const meta = metaSnap.val();
-    if (meta && meta.hostUid === me.uid) {
-      const playersSnap = await db.ref('rooms/' + roomId + '/players').get();
-      const obj = playersSnap.val() || {};
-      const uids = Object.keys(obj);
-      if (uids.length === 0) {
-        await db.ref('rooms/' + roomId).remove();
-      } else {
-        const newHostUid = uids[0];
-        await db.ref('rooms/' + roomId + '/meta/hostUid').set(newHostUid);
-      }
-    }
-    setRoomId(null);
-    setView('home');
-    saveLS(roomLSkey, null);
+    if (roomId) await db.ref('rooms/' + roomId + '/players/' + me.uid).remove();
+    setRoomId(null); setView('home');
   }
 
-  async function hostStartGame(settings = {}) {
-    if (!isHost) return alert('Solo el host puede iniciar la partida');
-    
-    const metaSnap = await db.ref('rooms/' + roomId + '/meta').get();
-    const meta = metaSnap.val() || {};
-    const history = meta.history || [];
-    const usedWords = meta.usedWords || [];
-
-    let selectedWord = "";
-    let selectedCat = "";
-    let attempts = 0;
-    const maxAttempts = 50;
-
-    while (attempts < maxAttempts) {
-      const catIdx = Math.floor(Math.random() * wordCategories.length);
-      const cat = wordCategories[catIdx];
-      const w = cat.words[Math.floor(Math.random() * cat.words.length)];
-      if (!usedWords.includes(w)) {
-        selectedWord = w;
-        selectedCat = cat.category;
-        break;
-      }
-      attempts++;
-    }
-
-    if (!selectedWord) {
-      const catIdx = Math.floor(Math.random() * wordCategories.length);
-      selectedCat = wordCategories[catIdx].category;
-      selectedWord = wordCategories[catIdx].words[Math.floor(Math.random() * wordCategories[catIdx].words.length)];
-    }
-
-    const playersSnap = await db.ref('rooms/' + roomId + '/players').get();
-    const playersObj = playersSnap.val() || {};
-    const uids = Object.keys(playersObj);
-    if (uids.length < 3) return alert('Se necesitan al menos 3 jugadores para iniciar');
-    
-    const recallN = settings.recallRounds || 3;
-    const penalty = settings.penaltyPerRecent || 0.6;
-    const weights = uids.map(uid => 1);
-    const lastN = history.slice(-recallN);
-    uids.forEach((uid,i) => {
-      const times = lastN.filter(x => x === uid).length;
-      if (times>0) weights[i] = weights[i] * Math.pow(1 - penalty, times);
-    });
-    const sum = weights.reduce((a,b)=>a+b,0);
-    let r = Math.random()*sum;
-    let chosenIdx = 0;
-    for (let i=0;i<weights.length;i++){
-      r -= weights[i];
-      if (r <= 0) { chosenIdx = i; break;}
-    }
-    const impostorUid = uids[chosenIdx];
-
-    const roles = {};
-    for (let u of uids) {
-      roles[u] = { role: (u === impostorUid ? 'impostor' : 'word') };
-    }
-
-    await db.ref('rooms/' + roomId + '/game').set({
-      state: 'playing',
-      category: selectedCat,
-      word: selectedWord,
-      startedAt: Date.now(),
-      impostorUid,
-      roles,
-    });
-
-    const nextHistory = (history).concat([impostorUid]).slice(-50);
-    const nextUsedWords = (usedWords).concat([selectedWord]).slice(-40); 
-
-    await db.ref('rooms/' + roomId + '/meta').update({
-      history: nextHistory,
-      usedWords: nextUsedWords
-    });
-  }
-
-  async function hostFinishGame() {
+  async function hostStartGame() {
     if (!isHost) return;
-    await db.ref('rooms/' + roomId + '/game/state').set('finished');
+    const cat = wordCategories[Math.floor(Math.random() * wordCategories.length)];
+    const word = cat.words[Math.floor(Math.random() * cat.words.length)];
+    const uids = players.map(p => p.uid);
+    if (uids.length < 3) return alert('Mínimo 3 jugadores');
+    
+    const impUid = uids[Math.floor(Math.random() * uids.length)];
+    const roles = {};
+    uids.forEach(u => roles[u] = { role: u === impUid ? 'impostor' : 'word' });
+
+    const newTurnOrder = shuffleArray([...uids]);
+    const updates = {};
+    uids.forEach(u => updates['players/'+u+'/ready'] = false);
+    updates['game'] = {
+      state: 'playing',
+      startedAt: Date.now(), 
+      category: cat.category,
+      word: word,
+      impostorUid: impUid,
+      roles: roles,
+      turnOrder: newTurnOrder,
+      turnIndex: 0,
+      statements: {} 
+    };
+    
+    await db.ref('rooms/' + roomId).update(updates);
   }
 
-  // --- Swipe Logic Mejorada ---
-  const THRESHOLD = useRef(0);
-  useEffect(()=> { THRESHOLD.current = -Math.round(containerHeight * THRESHOLD_RATIO); }, [containerHeight]);
+  async function hostStartVoting() {
+    if (!isHost) return;
+    const endTime = Date.now() + 60000; 
+    await db.ref('rooms/' + roomId + '/game').update({
+      state: 'voting',
+      voting: { endTime: endTime, votes: {} }
+    });
+  }
+
+  async function submitVote(targetUid) {
+    if (votingState && votingState.votes && votingState.votes[me.uid]) return; 
+    await db.ref('rooms/' + roomId + '/game/voting/votes/' + me.uid).set(targetUid);
+  }
+
+  async function hostSubmitStatement(text) {
+    if (!isHost || !text.trim()) return;
+    const currentUid = turnOrder[currentTurnIndex];
+    if (!currentUid) return;
+
+    await db.ref('rooms/' + roomId + '/game/statements').push({
+        uid: currentUid,
+        text: text,
+        timestamp: Date.now()
+    });
+
+    const nextIdx = (currentTurnIndex + 1) % turnOrder.length;
+    await db.ref('rooms/' + roomId + '/game/turnIndex').set(nextIdx);
+  }
+
+  useEffect(() => {
+    const update = () => { if(containerRef.current) setContainerHeight(containerRef.current.getBoundingClientRect().height); };
+    update(); window.addEventListener('resize', update);
+    return ()=> window.removeEventListener('resize', update);
+  }, []);
 
   function onPointerDown(ev){
-    if (view !== 'game' || cardRevealed) return;
+    if (cardRevealed) return;
     draggingRef.current = true;
-    startYRef.current = ev.clientY ?? (ev.touches && ev.touches[0] && ev.touches[0].clientY) ?? 0;
-    translateRef.current = 0;
+    startYRef.current = ev.clientY ?? (ev.touches && ev.touches[0].clientY) ?? 0;
   }
   
   function onPointerMove(ev){
-    if (!draggingRef.current || view !== 'game' || cardRevealed) return;
-    ev.preventDefault(); // Extra seguridad
+    if (!draggingRef.current || cardRevealed) return;
+    const cy = ev.clientY ?? (ev.touches && ev.touches[0].clientY) ?? 0;
+    const delta = cy - startYRef.current;
+    const ty = Math.min(0, delta);
     
-    const clientY = ev.clientY ?? (ev.touches && ev.touches[0] && ev.touches[0].clientY) ?? 0;
-    const delta = clientY - startYRef.current;
-    const translateY = Math.min(0, delta);
-    translateRef.current = translateY;
-    
-    // Mover carta frontal
-    if (cardFrontRef.current) {
-      cardFrontRef.current.style.transition = 'transform 0ms';
-      const scale = 1 - Math.min(0.07, Math.abs(translateY)/(containerHeight*6));
-      cardFrontRef.current.style.transform = `translateY(${translateY}px) scale(${scale})`;
-    }
-
-    // FIX 2: Revelar carta trasera visualmente durante el arrastre
-    if (cardBackRef.current) {
-        const progress = Math.min(1, Math.abs(translateY) / (Math.abs(THRESHOLD.current) * 0.8));
-        // Interpolación manual para que coincida con el CSS de la carta oculta
-        // opacity de 0 a 1
-        cardBackRef.current.style.opacity = progress;
-        // scale de 0.9 a 1
-        const currentScale = 0.9 + (0.1 * progress);
-        // rotate de 3deg a 0deg
-        const currentRotate = 3 - (3 * progress);
+    if (ty < 0 && cardFrontRef.current) {
+        const rotateX = (ty / containerHeight) * 20; 
+        cardFrontRef.current.style.transition = 'none';
+        cardFrontRef.current.style.transform = `translateY(${ty}px) rotateX(${rotateX}deg) scale(${1 - Math.abs(ty)/1000})`;
         
-        cardBackRef.current.style.transform = `scale(${currentScale}) rotate(${currentRotate}deg)`;
+        if (cardBackRef.current) {
+            const progress = Math.min(1, Math.abs(ty) / (containerHeight * 0.3));
+            cardBackRef.current.style.opacity = progress;
+            cardBackRef.current.style.transform = `scale(${0.9 + (0.1*progress)})`;
+        }
     }
-
-    if (translateY <= THRESHOLD.current) {
+    if (ty < -(containerHeight * 0.25)) {
       draggingRef.current = false;
       revealLocalCard();
     }
   }
 
-  function onPointerUp(ev){
+  function onPointerUp(){
     if (cardRevealed) return;
     if (!draggingRef.current) return;
     draggingRef.current = false;
-    if (translateRef.current <= THRESHOLD.current) {
-      revealLocalCard();
-    } else {
-      snapBackLocal();
+    
+    if (cardFrontRef.current) {
+        cardFrontRef.current.style.transition = 'transform 0.5s elastic';
+        cardFrontRef.current.style.transform = 'translateY(0px) rotateX(0deg)';
+    }
+    if (cardBackRef.current) {
+        cardBackRef.current.style.opacity = '0';
     }
   }
 
   function revealLocalCard(){
+    if(cardRevealed) return;
     setCardRevealed(true);
-    
-    // Animar salida de la carta frontal
-    if (cardFrontRef.current) {
-      cardFrontRef.current.style.transition = 'transform 320ms cubic-bezier(.22,.9,.28,1)';
-      cardFrontRef.current.style.transform = `translateY(${THRESHOLD.current - 120}px) scale(0.95)`;
-      cardFrontRef.current.style.opacity = '0';
-    }
-
-    // Asegurar que la carta trasera quede visible y en su posición final
-    if (cardBackRef.current) {
-       cardBackRef.current.style.opacity = '1';
-       cardBackRef.current.style.transform = 'scale(1) rotate(0deg)';
-    }
-
-    // FIX 4: Marcar "Entendido" automáticamente
-    setTimeout(playerRevealDone, 500); 
+    db.ref('rooms/' + roomId + '/players/' + me.uid + '/ready').set(true);
   }
 
-  function snapBackLocal(){
-    // Regresar carta frontal
-    if (cardFrontRef.current) {
-      cardFrontRef.current.classList.add('card-snap-back');
-      cardFrontRef.current.style.transform = 'translateY(0px) scale(1)';
-      setTimeout(()=> { if (cardFrontRef.current) cardFrontRef.current.classList.remove('card-snap-back'); }, 320);
-    }
-    // Regresar carta trasera a estado oculto
-    if (cardBackRef.current) {
-        cardBackRef.current.style.transition = 'all 0.3s ease';
-        cardBackRef.current.style.opacity = '';
-        cardBackRef.current.style.transform = '';
-        setTimeout(() => { if(cardBackRef.current) cardBackRef.current.style.transition = ''; }, 300);
-    }
-  }
-
-  async function playerRevealDone() {
-    if (roomId) await db.ref('rooms/' + roomId + '/players/' + me.uid + '/ready').set(true);
-  }
-  
-  async function hostResetReadyAll() {
-    if (!isHost) return;
-    const snap = await db.ref('rooms/' + roomId + '/players').get();
-    const obj = snap.val() || {};
-    const updates = {};
-    Object.keys(obj).forEach(uid => updates[uid + '/ready'] = false);
-    await db.ref('rooms/' + roomId + '/players').update(updates);
-  }
-
-  // --- Views ---
+  /* --- VISTAS --- */
 
   function LobbyView(){
-    const copyToClipboard = () => {
-      navigator.clipboard.writeText(roomId);
-      const btn = document.getElementById('copy-btn');
-      if(btn) btn.innerHTML = '¡COPIADO!';
-      setTimeout(()=>{ if(btn) btn.innerHTML = 'COPIAR'; }, 1500);
-    };
-
     return (
-      <div className="min-h-screen flex flex-col p-6 items-center animate-enter max-w-lg mx-auto w-full">
-        {/* Header Sala */}
-        <div className="w-full flex justify-between items-center mb-6">
+      <div className="min-h-screen flex flex-col p-6 items-center animate-enter w-full max-w-[95vw] mx-auto">
+        <div className="w-full max-w-lg mx-auto flex justify-between items-center mb-6">
           <div className="flex flex-col">
             <span className="text-gray-400 text-xs font-bold tracking-widest uppercase">CÓDIGO DE SALA</span>
-            <div className="flex items-center gap-2">
-              <span className="text-4xl font-mono font-black text-white">{roomId}</span>
-              <button id="copy-btn" onClick={copyToClipboard} className="bg-white/10 hover:bg-white/20 text-xs px-2 py-1 rounded text-gray-300 transition-colors">COPIAR</button>
-            </div>
+            <span className="text-4xl font-mono font-black text-white">{roomId}</span>
           </div>
-          <div className="flex flex-col items-end">
-            <span className="text-gray-400 text-xs font-bold tracking-widest uppercase">HOST</span>
-            <span className="text-sm font-semibold bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded border border-violet-500/30">
-              {roomState && roomState.meta && roomState.meta.hostUid === me.uid ? 'TÚ' : 'OTRO'}
-            </span>
-          </div>
+          <span className="text-sm font-semibold bg-violet-500/20 text-violet-300 px-3 py-1 rounded-full border border-violet-500/30">
+            {isHost ? 'ERES EL HOST' : 'ESPERANDO...'}
+          </span>
         </div>
 
-        {/* Players List */}
-        <div className="w-full glass-panel rounded-3xl p-5 mb-6 flex-1 overflow-hidden flex flex-col">
-          <div className="flex justify-between items-end mb-4 border-b border-white/5 pb-2">
-            <h3 className="font-bold text-gray-300">JUGADORES ({players.length})</h3>
-            <span className="text-xs text-gray-500">Espera a que todos entren</span>
-          </div>
-          
+        <div className="w-full max-w-lg mx-auto glass-panel rounded-3xl p-5 mb-6 flex-1 flex flex-col">
+          <h3 className="font-bold text-gray-300 mb-4 border-b border-white/5 pb-2">JUGADORES ({players.length})</h3>
           <div className="space-y-3 overflow-y-auto no-scrollbar flex-1">
-            {players.map((p, idx) => (
-              <div key={p.uid} className="flex items-center justify-between bg-black/20 p-3 rounded-2xl border border-white/5 transition-all hover:bg-white/5 animate-enter" style={{animationDelay: idx * 100 + 'ms'}}>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 flex items-center justify-center text-2xl bg-gradient-to-br from-gray-800 to-black rounded-full shadow-lg border border-white/5">
-                    {p.avatar}
-                  </div>
-                  <div>
-                    <div className="font-bold text-white flex items-center gap-2">
-                      {p.name}
-                      {p.uid === me.uid && <span className="text-[10px] bg-blue-500 text-white px-1 rounded">YO</span>}
-                    </div>
-                    <div className="text-xs text-gray-500 flex items-center gap-1">
-                      {p.ready ? <span className="text-green-400">● Listo</span> : <span className="text-gray-600">○ Esperando</span>}
-                    </div>
-                  </div>
-                </div>
-                {roomState && roomState.meta && roomState.meta.hostUid === p.uid && (
-                  <span title="Host" className="text-xl">👑</span>
-                )}
+            {players.map((p) => (
+              <div key={p.uid} className="flex items-center gap-4 bg-black/20 p-3 rounded-2xl border border-white/5">
+                <div className="text-3xl">{p.avatar}</div>
+                <div className="font-bold text-white">{p.name} {p.uid === me.uid && '(Tú)'}</div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="w-full space-y-3 mt-auto">
-          {isHost ? (
-             <Button onClick={hostStartGame}>
-                INICIAR PARTIDA
-             </Button>
-          ) : (
-            <div className="text-center p-4 text-gray-400 italic animate-pulse">
-              Esperando a que el host inicie...
-            </div>
-          )}
-          <Button variant="secondary" onClick={leaveRoom}>Salir</Button>
+        <div className="w-full max-w-lg mx-auto">
+            {isHost ? (
+            <Button onClick={hostStartGame}>INICIAR PARTIDA</Button>
+            ) : (
+            <div className="text-center p-4 text-gray-400 animate-pulse">El host iniciará pronto...</div>
+            )}
+            <Button variant="secondary" className="mt-3" onClick={leaveRoom}>Salir</Button>
         </div>
       </div>
     );
@@ -772,193 +616,417 @@ function App(){
   function GameView(){
     const currentPlayer = players.find(p => p.uid === me.uid) || me;
     const isImpostor = localRole === 'impostor';
-    
-    // Auto-scroll to top
-    useEffect(()=>{ window.scrollTo(0,0); },[]);
+    const turnUid = turnOrder[currentTurnIndex];
+    const turnPlayer = players.find(p => p.uid === turnUid);
+    const [wordInput, setWordInput] = useState('');
+    const hostInputRef = useRef(null);
+
+    const isMyTurn = turnUid === me.uid;
+
+    /* MEJORA 1: ORDENAR JUGADORES POR TURNO */
+    const sortedPlayers = useMemo(() => {
+        if (!turnOrder || turnOrder.length === 0) return players;
+        const sorted = [...players];
+        sorted.sort((a, b) => {
+            const idxA = turnOrder.indexOf(a.uid);
+            const idxB = turnOrder.indexOf(b.uid);
+            const valA = idxA === -1 ? 9999 : idxA;
+            const valB = idxB === -1 ? 9999 : idxB;
+            return valA - valB;
+        });
+        return sorted;
+    }, [players, turnOrder]);
+
+    const handleInputKey = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (!wordInput.trim()) return;
+            
+            hostSubmitStatement(wordInput);
+            setWordInput('');
+            
+            // FOCUS FORCE STRATEGY
+            if(hostInputRef.current) hostInputRef.current.focus();
+            setTimeout(() => { if(hostInputRef.current) hostInputRef.current.focus(); }, 10);
+            setTimeout(() => { if(hostInputRef.current) hostInputRef.current.focus(); }, 50);
+        }
+    };
+
+    const handleSendClick = () => {
+        if (!wordInput.trim()) return;
+        hostSubmitStatement(wordInput);
+        setWordInput('');
+        if(hostInputRef.current) hostInputRef.current.focus();
+        setTimeout(() => { if(hostInputRef.current) hostInputRef.current.focus(); }, 50);
+    };
 
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 overflow-hidden relative">
+      <div className={`min-h-screen flex flex-col transition-all duration-1000 ${!cardRevealed ? 'bg-black/80 backdrop-blur-md' : ''}`}>
         
-        {/* Progress Dots */}
-        <div className="absolute top-8 flex gap-2">
-          {players.map(p => (
-             <div key={p.uid} className={`w-2 h-2 rounded-full transition-colors ${p.ready ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-gray-700'}`} />
-          ))}
-        </div>
-
-        {/* Header Info */}
-        <div className={`text-center mb-6 transition-opacity duration-500 ${cardRevealed ? 'opacity-50' : 'opacity-100'}`}>
-          <h2 className="text-gray-400 text-xs font-bold tracking-[0.2em] uppercase mb-1">Tu Identidad</h2>
-          <h1 className="text-3xl font-bold text-white">{currentPlayer.name}</h1>
-        </div>
-
-        {/* Card Area - FIX 1: touch-action: none aplicado via estilo inline también para redundancia */}
-        <div ref={containerRef} className="w-full max-w-xs h-[460px] relative card-container z-20" 
-             style={{touchAction: 'none'}}
-             onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
-          
-          {/* Front Card (Cover) */}
-          <div ref={cardFrontRef} className="game-card absolute inset-0 rounded-[2.5rem] border border-white/10 flex flex-col items-center justify-center bg-[#0f1119] overflow-hidden cursor-grab shadow-2xl">
-            {/* Pattern Overlay */}
-            <div className="absolute inset-0 opacity-20" style={{backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '24px 24px'}}></div>
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent pointer-events-none"></div>
-
-            <div className="relative z-10 flex flex-col items-center">
-              <div className="text-9xl mb-6 filter drop-shadow-2xl animate-float">{currentPlayer.avatar}</div>
-              <div className="text-gray-300 font-medium text-center px-8">
-                <p className="mb-3 text-lg">Hola <span className="text-violet-400 font-bold">{currentPlayer.name}</span></p>
-                <p className="text-sm opacity-60 leading-relaxed">Desliza esta tarjeta hacia arriba para revelar tu rol secreto.</p>
-              </div>
+        {/* Navbar */}
+        <div className="w-full p-4 flex justify-between items-center bg-black/20 backdrop-blur-md sticky top-0 z-50 border-b border-white/5">
+            <div className="flex items-center gap-2">
+                <span className="text-2xl">{currentPlayer.avatar}</span>
+                <div className="leading-none">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wider">Tu Rol</div>
+                    <div className={`font-bold ${cardRevealed ? (isImpostor ? 'text-red-500' : 'text-blue-400') : 'text-white'}`}>
+                        {cardRevealed ? (isImpostor ? 'IMPOSTOR' : 'TRIPULANTE') : '???'}
+                    </div>
+                </div>
             </div>
-
-            <div className="absolute bottom-8 flex flex-col items-center opacity-60 animate-bounce">
-              <span className="text-[10px] uppercase tracking-widest mb-1">Deslizar</span>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-            </div>
-          </div>
-
-          {/* Back Card (Reveal) - FIX 2: Ref agregado para animación sincronizada */}
-          <div ref={cardBackRef} className={`absolute inset-0 flex flex-col items-center justify-center rounded-[2.5rem] border transition-all duration-700 ${cardRevealed ? 'scale-100 opacity-100 rotate-0' : 'scale-90 opacity-0 rotate-3'} ${isImpostor ? 'bg-gradient-to-br from-red-950 to-black border-red-500/30' : 'bg-gradient-to-br from-blue-950 to-black border-blue-500/30'}`}>
             
-            {isImpostor ? (
-              // IMPOSTOR REVEAL
-              <div className="text-center relative w-full h-full flex flex-col items-center justify-center p-6 animate-shake">
-                <div className="absolute inset-0 bg-red-500/10 blur-3xl rounded-full animate-pulse"></div>
-                <div className="text-8xl mb-6 relative z-10">🤫</div>
-                <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-b from-red-500 to-red-800 mb-2 tracking-tighter">IMPOSTOR</h2>
-                <div className="h-1 w-20 bg-red-600 rounded-full mb-6"></div>
-                <p className="text-red-200 text-sm font-medium leading-relaxed bg-red-900/20 p-4 rounded-xl border border-red-500/20">
-                  No conoces la palabra secreta.<br/>
-                  <span className="font-bold text-white">Engaña a todos</span> y finge que sabes de qué hablan.
-                </p>
-              </div>
-            ) : (
-              // CREWMATE REVEAL
-              <div className="text-center relative w-full h-full flex flex-col items-center justify-center p-6">
-                <div className="absolute inset-0 bg-blue-500/10 blur-3xl rounded-full animate-pulse-soft"></div>
-                <div className="text-7xl mb-6 relative z-10">🛡️</div>
-                <h2 className="text-xs font-bold text-blue-400 tracking-[0.3em] uppercase mb-2">Misión: Descubrir al intruso</h2>
-                <div className="bg-white/5 border border-white/10 p-6 rounded-2xl w-full backdrop-blur-sm">
-                   <h2 className="text-xs text-gray-400 uppercase tracking-widest mb-1">La palabra es</h2>
-                   <h1 className="text-3xl font-black text-white tracking-wide break-words">{secretWord}</h1>
+            {turnPlayer && (
+                <div className="flex flex-col items-end">
+                    <span className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">Turno de</span>
+                    <div className="flex items-center gap-1">
+                        <span className="text-white font-bold">{turnPlayer.name}</span>
+                        {isMyTurn && <span className="bg-amber-500 text-black text-[10px] px-1 rounded font-bold animate-pulse">YO</span>}
+                    </div>
                 </div>
-                <div className="mt-6 flex items-center gap-2 text-xs text-blue-300/70 bg-blue-900/20 px-3 py-1 rounded-full border border-blue-500/20">
-                  <span>Categoría:</span>
-                  <span className="font-bold text-blue-200">{category}</span>
-                </div>
-              </div>
             )}
-          </div>
         </div>
 
-        {/* FIX 3: Botón 'ENTENDIDO' eliminado completamente */}
+        {/* LAYOUT FLUIDO ULTRAWIDE */}
+        <div className="flex-1 w-full max-w-[95vw] mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            {/* LISTA JUGADORES (ORDENADA) */}
+            <div className="hidden lg:flex lg:col-span-3 xl:col-span-3 flex-col gap-3 h-[calc(100vh-100px)] overflow-y-auto no-scrollbar glass-panel rounded-3xl p-4">
+                <h3 className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">Tripulación (Orden de Turno)</h3>
+                {sortedPlayers.map((p, idx) => {
+                    const isTurn = p.uid === turnUid;
+                    const userWords = Object.values(statements).filter(s => s.uid === p.uid).map(s => s.text);
+                    
+                    return (
+                        <div key={p.uid} className={`relative p-3 rounded-2xl border transition-all duration-300
+                            ${isTurn ? 'turn-active bg-amber-500/10' : 'border-white/5 bg-white/5'}
+                            ${!p.ready ? 'player-not-ready' : 'player-ready'}
+                        `}>
+                             <div className="absolute top-2 right-2 text-[10px] text-gray-600 font-mono">#{idx + 1}</div>
+                             
+                            <div className="flex items-center gap-3">
+                                <div className="text-2xl">{p.avatar}</div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="font-bold text-white truncate">{p.name}</div>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                        {userWords.map((w,i) => (
+                                            <span key={i} className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-gray-300">{w}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
 
-        {/* Host Controls */}
-        <div className="w-full max-w-xs mt-12">
-          {isHost ? (
-            <div className="glass-panel p-3 rounded-2xl flex flex-col gap-2">
-              <span className="text-[10px] text-gray-500 text-center uppercase font-bold tracking-widest">Controles de Host</span>
-              <div className="flex gap-2">
-                <button onClick={()=>hostFinishGame()} className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-red-400 text-xs font-bold border border-red-500/20 transition-colors">TERMINAR</button>
-                <button onClick={()=>hostResetReadyAll()} className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-bold border border-white/10 transition-colors">RESET READY</button>
-              </div>
+            {/* CARTA CENTRAL */}
+            <div className="lg:col-span-6 xl:col-span-6 flex flex-col items-center justify-center relative min-h-[500px]">
+                
+                <div ref={containerRef} className="w-full max-w-md h-[480px] relative card-container z-20" 
+                    onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+                    
+                    {/* CARTA FRONTAL (Cover) */}
+                    <div ref={cardFrontRef} 
+                         onClick={revealLocalCard}
+                         className={`game-card absolute inset-0 rounded-[2.5rem] border border-white/10 flex flex-col items-center justify-center bg-[#0f1119] overflow-hidden shadow-2xl transition-opacity duration-500 ${cardRevealed ? 'card-hidden' : ''}`}>
+                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                        <div className="relative z-10 flex flex-col items-center pointer-events-none">
+                            <div className="text-9xl mb-8 animate-float">{currentPlayer.avatar}</div>
+                            <div className="text-center px-6">
+                                <p className="text-white font-bold text-2xl mb-1">¡Toca para Ver!</p>
+                                <p className="text-gray-400 text-sm mb-4">Click o Desliza</p>
+                                <div className="w-1 h-12 bg-gradient-to-t from-violet-500 to-transparent mx-auto rounded-full animate-pulse"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* CARTA TRASERA (ROL) */}
+                    <div ref={cardBackRef} className={`absolute inset-0 flex flex-col items-center justify-center rounded-[2.5rem] border transition-all duration-500
+                        ${cardRevealed ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}
+                        ${isImpostor ? 'bg-gradient-to-br from-red-950 to-black border-red-500/30' : 'bg-gradient-to-br from-blue-950 to-black border-blue-500/30'}
+                        ${isMyTurn ? 'turn-active' : ''}
+                        `}>
+                        
+                        {isImpostor ? (
+                            <div className="text-center p-6 animate-shake">
+                                <div className="text-9xl mb-6">🤫</div>
+                                <h2 className="text-5xl font-black text-red-500 mb-4">IMPOSTOR</h2>
+                                <p className="text-red-200 text-lg bg-red-900/20 p-4 rounded-xl">Engaña a todos. No sabes la palabra.</p>
+                            </div>
+                        ) : (
+                            <div className="text-center p-6">
+                                <div className="text-8xl mb-6">🛡️</div>
+                                <h2 className="text-sm font-bold text-blue-400 tracking-[0.3em] uppercase mb-4">Palabra Secreta</h2>
+                                <div className="bg-white/5 p-8 rounded-3xl w-full backdrop-blur-sm mb-6">
+                                    <h1 className="text-4xl font-black text-white">{secretWord}</h1>
+                                </div>
+                                <span className="text-sm text-blue-300 bg-blue-900/20 px-4 py-1.5 rounded-full">{category}</span>
+                            </div>
+                        )}
+
+                        {isMyTurn && (
+                            <div className="absolute -bottom-12 bg-amber-500 text-black font-bold px-6 py-2 rounded-full shadow-[0_0_20px_rgba(255,191,0,0.8)] animate-bounce text-base">
+                                ¡ES TU TURNO DE HABLAR!
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Lista Movil (Ahora tambien ordenada) */}
+                <div className="lg:hidden w-full mt-10 space-y-2">
+                    {cardRevealed && sortedPlayers.map(p => {
+                        const isTurn = p.uid === turnUid;
+                        const userWords = Object.values(statements).filter(s => s.uid === p.uid).map(s => s.text);
+                        return (
+                             <div key={p.uid} className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${isTurn ? 'turn-active bg-amber-500/10' : 'bg-white/5 border-white/5'} ${!p.ready ? 'player-not-ready':''}`}>
+                                <div className="text-xl">{p.avatar}</div>
+                                <div className="flex-1">
+                                    <div className="font-bold text-sm text-white flex justify-between">
+                                        {p.name}
+                                        {isTurn && <span className="text-[10px] text-amber-400 animate-pulse">HABLANDO...</span>}
+                                    </div>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                         {userWords.length > 0 ? (
+                                            userWords.map((w,i)=><span key={i} className="text-[10px] text-gray-300 bg-white/10 px-1 rounded">{w}</span>)
+                                         ) : <span className="text-[10px] text-gray-600 italic">...</span>}
+                                    </div>
+                                </div>
+                             </div>
+                        );
+                    })}
+                </div>
             </div>
-          ) : (
-            <div className="text-xs text-gray-500 text-center mt-2 font-medium">
-               {cardRevealed ? "Esperando a que el host inicie la discusión..." : "Desliza para ver tu rol"}
+
+            {/* PANEL HOST (Flexible) */}
+            <div className="lg:col-span-3 xl:col-span-3 flex flex-col gap-4 h-full justify-between">
+                {isHost && cardRevealed && (
+                    <div className="glass-panel p-4 rounded-2xl border-l-4 border-l-amber-500">
+                        <div className="text-xs font-bold text-amber-500 uppercase mb-2">Panel de Host</div>
+                        {turnPlayer ? (
+                            <>
+                                <p className="text-sm text-gray-300 mb-2">Escribe lo que diga <b className="text-white">{turnPlayer.name}</b>:</p>
+                                <div className="flex gap-2">
+                                    <input 
+                                        ref={hostInputRef}
+                                        type="text" 
+                                        autoFocus
+                                        value={wordInput}
+                                        onChange={(e) => setWordInput(e.target.value)}
+                                        onKeyDown={handleInputKey}
+                                        className="flex-1 bg-black/30 border border-white/20 rounded-xl px-3 text-white focus:border-amber-500 outline-none"
+                                        placeholder="Escribe y presiona Enter..."
+                                    />
+                                    <button 
+                                        onClick={handleSendClick}
+                                        className="bg-amber-500 text-black font-bold px-4 rounded-xl hover:bg-amber-400"
+                                    >
+                                        OK
+                                    </button>
+                                </div>
+                                <button onClick={() => hostSubmitStatement("Pasó turno")} className="text-[10px] text-gray-500 underline mt-2">Saltar Turno</button>
+                            </>
+                        ) : (
+                            <p className="text-sm text-gray-500">Esperando inicio...</p>
+                        )}
+                    </div>
+                )}
+
+                {isHost && (
+                    <div className="grid grid-cols-2 gap-2 mt-4 lg:mt-auto">
+                        <Button variant="danger" className="text-xs py-3" onClick={hostStartVoting}>INICIAR VOTACIÓN</Button>
+                        <Button variant="secondary" className="text-xs py-3" onClick={()=>db.ref('rooms/'+roomId+'/game/state').set('finished')}>TERMINAR</Button>
+                    </div>
+                )}
             </div>
-          )}
         </div>
       </div>
     );
   }
 
-  function FinishedView(){
-    const impostorUid = roomState && roomState.game && roomState.game.impostorUid;
-    const impostor = players.find(p => p.uid === impostorUid);
+  /* 4. VOTACIÓN EN TIEMPO REAL */
+  function VotingView() {
+    const [timeLeft, setTimeLeft] = useState(60);
+    const hasVoted = votingState && votingState.votes && votingState.votes[me.uid];
+    const currentVotes = votingState?.votes || {};
 
-    // Confetti Effect on mount
+    useEffect(() => {
+        if (!isHost || !votingState || !votingState.votes) return;
+        const votesCount = Object.keys(votingState.votes).length;
+        if (votesCount >= players.length && players.length > 0) {
+            db.ref('rooms/'+roomId+'/game/state').set('finished');
+        }
+    }, [votingState, players.length, isHost]);
+
+    useEffect(() => {
+        if (!votingState || !votingState.endTime) return;
+        const interval = setInterval(() => {
+            const seconds = Math.max(0, Math.ceil((votingState.endTime - Date.now()) / 1000));
+            setTimeLeft(seconds);
+            if (seconds === 0 && !hasVoted) {
+                submitVote(me.uid);
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [votingState, hasVoted]);
+
+    const myVoteTarget = votingState?.votes?.[me.uid];
+
+    return (
+        <div className="min-h-screen flex flex-col p-6 items-center justify-center animate-enter">
+            <h1 className="text-3xl font-black text-white mb-2">MOMENTO DE VOTAR</h1>
+            <div className={`text-6xl font-mono font-bold mb-8 ${timeLeft < 10 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+                {timeLeft}s
+            </div>
+            
+            <p className="text-gray-400 mb-6 text-sm max-w-xs text-center">
+                Si no votas antes de que acabe el tiempo (o todos voten), te votarás a ti mismo.
+            </p>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 w-full max-w-[90vw]">
+                {players.map(p => {
+                    const isSelected = myVoteTarget === p.uid;
+                    const userWords = Object.values(statements).filter(s => s.uid === p.uid).map(s => s.text);
+                    const votersForThisPlayer = players.filter(voter => currentVotes[voter.uid] === p.uid);
+
+                    return (
+                        <button 
+                            key={p.uid} 
+                            onClick={() => !hasVoted && submitVote(p.uid)}
+                            disabled={hasVoted}
+                            className={`relative p-6 rounded-3xl border flex flex-col items-center transition-all
+                                ${isSelected ? 'bg-red-600 border-red-400 transform scale-105 shadow-[0_0_30px_rgba(220,38,38,0.5)] z-10' : 'bg-white/5 border-white/10 hover:bg-white/10'}
+                                ${hasVoted && !isSelected ? 'opacity-50 grayscale' : ''}
+                            `}
+                        >
+                            <div className="text-5xl mb-3">{p.avatar}</div>
+                            <div className="font-bold text-white text-lg">{p.name}</div>
+                            <div className="mt-2 flex flex-wrap justify-center gap-1 opacity-70">
+                                {userWords.map((w,i)=><span key={i} className="text-[10px] bg-black/30 px-1 rounded">{w}</span>)}
+                            </div>
+                            
+                            {votersForThisPlayer.length > 0 && (
+                                <div className="absolute -top-3 -right-3 flex flex-wrap justify-end gap-1 w-full px-4 pointer-events-none">
+                                    {votersForThisPlayer.map(v => (
+                                        <div key={v.uid} className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center text-sm shadow-lg border-2 border-red-500 z-20" title={`Voto de ${v.name}`}>
+                                            {v.avatar}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {isSelected && <div className="absolute top-2 right-2 text-white bg-black/50 rounded-full p-1 text-xs">TU VOTO</div>}
+                        </button>
+                    )
+                })}
+            </div>
+            
+            {hasVoted && <div className="mt-8 text-green-400 font-bold animate-pulse">¡ESPERANDO A LOS DEMÁS!</div>}
+        </div>
+    )
+  }
+
+  /* 5. RESULTADOS DETALLADOS */
+  function FinishedView(){
+    const impostorUid = roomState?.game?.impostorUid;
+    const impostor = players.find(p => p.uid === impostorUid);
+    const votes = roomState?.game?.voting?.votes || {};
+    
+    const detailedVotes = {};
+    players.forEach(p => detailedVotes[p.uid] = []);
+    Object.keys(votes).forEach(voterUid => {
+        const targetUid = votes[voterUid];
+        if (detailedVotes[targetUid]) {
+            detailedVotes[targetUid].push(players.find(p => p.uid === voterUid));
+        }
+    });
+
     useEffect(() => {
         if (window.confetti) {
-            var duration = 3 * 1000;
-            var animationEnd = Date.now() + duration;
-            var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
-
-            var random = function(min, max) { return Math.random() * (max - min) + min; };
-
-            var interval = setInterval(function() {
-            var timeLeft = animationEnd - Date.now();
-            if (timeLeft <= 0) { return clearInterval(interval); }
-            var particleCount = 50 * (timeLeft / duration);
-            confetti(Object.assign({}, defaults, { particleCount, origin: { x: random(0.1, 0.3), y: Math.random() - 0.2 } }));
-            confetti(Object.assign({}, defaults, { particleCount, origin: { x: random(0.7, 0.9), y: Math.random() - 0.2 } }));
-            }, 250);
+            window.confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
         }
     }, []);
 
     return (
-      <div className="min-h-screen flex flex-col p-6 items-center justify-center animate-enter relative overflow-hidden">
-        
-        <div className="text-center mb-10 relative z-10">
-          <div className="text-7xl mb-4 animate-bounce">🎭</div>
-          <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-400">RONDA FINALIZADA</h1>
-          <p className="text-gray-400 mt-2">¿Atraparon al impostor?</p>
+      <div className="min-h-screen flex flex-col p-6 items-center justify-center animate-enter relative">
+        <div className="text-center mb-8 relative z-10">
+          <h1 className="text-4xl font-black text-white">RESULTADOS</h1>
         </div>
 
-        <div className="w-full max-w-sm glass-panel p-8 rounded-3xl border border-white/10 mb-8 text-center relative z-10">
-            <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-red-600 text-white text-xs font-bold px-4 py-1 rounded-full shadow-lg border border-red-400 uppercase tracking-wider">
-                El Impostor Era
-            </div>
+        <div className="flex flex-col lg:flex-row gap-8 items-center lg:items-start max-w-[90vw] w-full justify-center">
             
-            <div className="mt-4 mb-2 relative">
-                <div className="absolute inset-0 bg-red-500/20 blur-2xl rounded-full"></div>
-                <div className="text-6xl relative z-10">{impostor ? impostor.avatar : '—'}</div>
+            <div className="glass-panel p-8 rounded-3xl border border-red-500/30 text-center relative w-full max-w-sm">
+                <div className="text-xs font-bold text-red-400 uppercase tracking-widest mb-4">El Impostor Era</div>
+                <div className="text-8xl mb-4 animate-bounce">{impostor?.avatar || '?'}</div>
+                <div className="text-3xl font-bold text-white mb-2">{impostor?.name || 'Desconocido'}</div>
+                <div className="text-sm text-gray-400 bg-white/5 p-3 rounded-xl inline-block">Palabra secreta: <span className="text-white font-bold">{secretWord}</span></div>
             </div>
-            
-            <div className="text-2xl font-bold text-white mb-1">{impostor ? impostor.name : 'Desconocido'}</div>
-            <div className="text-xs text-red-300 opacity-70">Engaño Maestro</div>
+
+            <div className="w-full max-w-md">
+                <h3 className="text-xs text-gray-500 font-bold uppercase mb-4 text-center lg:text-left">Detalle de Votaciones</h3>
+                <div className="space-y-3">
+                    {players.map(p => {
+                        const voters = detailedVotes[p.uid] || [];
+                        if (voters.length === 0) return null;
+                        
+                        const isTargetImpostor = p.uid === impostorUid;
+
+                        return (
+                            <div key={p.uid} className={`bg-white/5 p-4 rounded-2xl border ${isTargetImpostor ? 'border-red-500/30 bg-red-500/5' : 'border-white/5'}`}>
+                                <div className="flex justify-between items-center mb-2">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-2xl">{p.avatar}</span>
+                                        <span className="font-bold text-white">{p.name}</span>
+                                    </div>
+                                    <div className="bg-white/10 px-2 py-1 rounded text-xs font-bold">{voters.length} Votos</div>
+                                </div>
+                                
+                                <div className="flex flex-wrap gap-2 pl-2 border-l-2 border-white/10 ml-2">
+                                    <span className="text-[10px] text-gray-500 uppercase tracking-widest self-center mr-1">Votado por:</span>
+                                    {voters.map(v => (
+                                        <div key={v.uid} className="flex items-center gap-1 bg-black/30 px-2 py-1 rounded-full border border-white/5" title={v.name}>
+                                            <span className="text-xs">{v.avatar}</span>
+                                            <span className="text-[10px] text-gray-300">{v.name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
         </div>
 
-        <div className="w-full max-w-sm space-y-3 relative z-10">
-          <Button onClick={()=> { if (isHost) hostStartGame(); else alert('Solo host puede iniciar otra ronda') }}>
-             JUGAR OTRA VEZ
-          </Button>
-          <Button variant="secondary" onClick={leaveRoom}>
-             Volver al Inicio
-          </Button>
+        <div className="mt-10 text-center">
+            {isHost ? (
+                <Button onClick={hostStartGame} className="px-8">JUGAR OTRA VEZ</Button>
+            ) : (
+                <div className="p-4 bg-white/5 rounded-2xl border border-white/10 animate-pulse inline-flex items-center gap-3">
+                    <span className="text-2xl">⏳</span>
+                    <span className="text-gray-300 font-bold">Esperando al Host para la siguiente ronda...</span>
+                </div>
+            )}
+            <div className="mt-4">
+                 <button onClick={leaveRoom} className="text-gray-500 hover:text-white transition-colors text-sm underline">Salir al Inicio</button>
+            </div>
         </div>
       </div>
     );
   }
 
-  if (!ready) return (
-    <div className="min-h-screen flex flex-col items-center justify-center text-white gap-4">
-        <div className="w-10 h-10 border-4 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
-        <div className="text-sm font-bold tracking-widest opacity-50">CARGANDO...</div>
-    </div>
-  );
+  if (!ready) return <div className="min-h-screen flex items-center justify-center text-white font-bold">CARGANDO...</div>;
 
   return (
     <>
       {(!roomId && view === 'home') && <HomeView me={me} setMe={setMe} createRoom={createRoom} joinRoom={joinRoom} roomId={roomId} />}
       {(roomId && view === 'lobby') && <LobbyView />}
       {(roomId && view === 'game') && <GameView />}
+      {(roomId && view === 'voting') && <VotingView />}
       {(roomId && view === 'finished') && <FinishedView />}
-      
-      <div className="fixed bottom-4 right-4 z-50">
-        <div className="glass-panel px-3 py-2 rounded-xl text-[10px] text-gray-400 flex flex-col items-end">
-          {me && <span className="font-bold text-white">{me.name}</span>}
-          <span>{roomId ? `Sala: ${roomId}` : 'v2.0 Pro'}</span>
-        </div>
-      </div>
     </>
   );
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-
   </script>
 </body>
 </html>
-
-
